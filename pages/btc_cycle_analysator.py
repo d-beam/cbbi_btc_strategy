@@ -149,46 +149,60 @@ def main():
         for chunk, is_complete in chunks:
             if chunk.empty:
                 continue  # Skip empty chunks
-    
+
             # Initialize the dictionary for this cycle's stats
             cycle_stats = {
-                "Cycle Start Date": chunk['Date'].iloc[0],
+                "Cycle Start Date": chunk['Date'].iloc[0].date(),
                 "First CBBI >= 85 Date": None,
                 "Days CBBI >= 85": 0,
-                "Max Price": None,
-                "Date of Max Price": None,
-                "Days to Max Price": None,
+                "Cycle Top": None,
+                "Date of Cycle Top": None,
+                "Days to Cycle Top": None,
                 "First CBBI <= 15 Date": None,
                 "Days CBBI <= 15": 0,
-                "Min Price": None,
-                "Date of Min Price": None,
-                "Days to Min Price": None,
+                "Cycle Bottom": None,
+                "Date of Cycle Bottom": None,
+                "Days to Cycle Bottom": None,
             }
-    
-            # Check for the first date CBBI reached or rose above 85
-            cbbi_85 = chunk[chunk['CBBI'] >= 85]
-            if not cbbi_85.empty:
-                cycle_stats["First CBBI >= 85 Date"] = cbbi_85['Date'].iloc[0]
-                cycle_stats["Days CBBI >= 85"] = len(cbbi_85)
-    
-            # Maximum price and its date
-            max_price_row = chunk.loc[chunk['Price'].idxmax()]
-            cycle_stats["Max Price"] = max_price_row['Price']
-            cycle_stats["Date of Max Price"] = max_price_row['Date']
-            cycle_stats["Days to Max Price"] = (max_price_row['Date'] - chunk['Date'].iloc[0]).days
-    
-            # Check for the first date CBBI reached or fell below 15
-            cbbi_15 = chunk[chunk['CBBI'] <= 15]
-            if not cbbi_15.empty:
-                cycle_stats["First CBBI <= 15 Date"] = cbbi_15['Date'].iloc[0]
-                cycle_stats["Days CBBI <= 15"] = len(cbbi_15)
-    
-            # Minimum price and its date
-            min_price_row = chunk.loc[chunk['Price'].idxmin()]
-            cycle_stats["Min Price"] = min_price_row['Price']
-            cycle_stats["Date of Min Price"] = min_price_row['Date']
-            cycle_stats["Days to Min Price"] = (min_price_row['Date'] - chunk['Date'].iloc[0]).days
-    
+
+            # Adjusted criteria for CBBI crossing thresholds with a persistence check of five days
+            def find_persistent_cbbi_crossing(df, threshold, above=True, min_days=5):
+                condition = df['CBBI'] >= threshold if above else df['CBBI'] <= threshold
+                crossing_points = df[condition]
+                first_crossing_date = None
+                for i in range(len(crossing_points) - min_days + 1):
+                    if (crossing_points['Date'].iloc[i + min_days - 1] - crossing_points['Date'].iloc[i]).days < min_days * 2:
+                        first_crossing_date = crossing_points['Date'].iloc[i]
+                        break
+                return first_crossing_date
+
+            # Apply adjusted criteria for CBBI >= 85
+            first_cbbi_85_date = find_persistent_cbbi_crossing(chunk, 85, above=True)
+            if first_cbbi_85_date is not None:
+                cycle_stats["First CBBI >= 85 Date"] = first_cbbi_85_date.date()
+                cycle_stats["Days CBBI >= 85"] = chunk[chunk['CBBI'] >= 85].shape[0]
+
+            # Apply adjusted criteria for CBBI <= 15
+            first_cbbi_15_date = find_persistent_cbbi_crossing(chunk, 15, above=False)
+            if first_cbbi_15_date is not None:
+                cycle_stats["First CBBI <= 15 Date"] = first_cbbi_15_date.date()
+                cycle_stats["Days CBBI <= 15"] = chunk[chunk['CBBI'] <= 15].shape[0]
+
+            # Find the actual cycle top and bottom
+            if first_cbbi_85_date is not None:
+                top_chunk = chunk[chunk['Date'] >= first_cbbi_85_date]
+                cycle_top_row = top_chunk.loc[top_chunk['Price'].idxmax()]
+                cycle_stats["Cycle Top"] = cycle_top_row['Price']
+                cycle_stats["Date of Cycle Top"] = cycle_top_row['Date'].date()
+                cycle_stats["Days to Cycle Top"] = (cycle_top_row['Date'] - chunk['Date'].iloc[0]).days
+
+            if first_cbbi_15_date is not None:
+                bottom_chunk = chunk[chunk['Date'] <= first_cbbi_15_date]
+                cycle_bottom_row = bottom_chunk.loc[bottom_chunk['Price'].idxmin()]
+                cycle_stats["Cycle Bottom"] = cycle_bottom_row['Price']
+                cycle_stats["Date of Cycle Bottom"] = cycle_bottom_row['Date'].date()
+                cycle_stats["Days to Cycle Bottom"] = (cycle_bottom_row['Date'] - chunk['Date'].iloc[0]).days
+
             # Add the stats for this cycle to the list
             cycles_stats.append(cycle_stats)
 
@@ -197,6 +211,7 @@ def main():
 
         # Assuming you're using Streamlit, display the DataFrame
         st.write("Cycle Statistics", cycles_stats_df)
+
 
 if __name__ == "__main__":
     main()
