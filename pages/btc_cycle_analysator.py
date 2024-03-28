@@ -103,11 +103,100 @@ def main():
         # Display the figure in Streamlit
         st.plotly_chart(fig, use_container_width=True)
 
-        # Display the data as a table below the chart
-        st.write("Data Table:")
-        st.dataframe(df)
-    else:
-        st.write("Failed to fetch or display data.")
+        # Everyting from here on is about extracting cycle
+        # Extracting halving dates
+        halving_dates = pd.to_datetime(bitcoin_halving_data['Date'])
+
+        # Ensure df['Date'] is in datetime format for comparison
+        df['Date'] = pd.to_datetime(df['Date'])
+
+        # Sort just in case
+        df.sort_values('Date', inplace=True)
+
+        # Initialize variables for chunking
+        chunks = []
+        start_index = 0
+        is_first_chunk = True
+
+        # Iterate through halving dates to create chunks
+        for halving_date in halving_dates:
+            # Find the index of the first occurrence of the halving date in df
+            end_index = df[df['Date'] >= halving_date].index.min()
+
+            # Correctly include the halving date in the current chunk
+            # Check if the chunk is complete (starts and ends with halving date)
+            is_complete = not is_first_chunk and halving_date in df.loc[start_index:end_index]['Date'].values
+            if is_complete or is_first_chunk:
+                # Include the halving date in the chunk
+                chunk = df.loc[start_index:end_index]
+            else:
+                # Exclude the first date of the next chunk (halving date) from the current chunk
+                chunk = df.loc[start_index:end_index-1]
+
+            chunks.append((chunk, is_complete))
+
+            # Prepare for the next chunk by starting it from the current halving date
+            start_index = end_index
+            is_first_chunk = False
+
+        # Add the remaining data as the last chunk, which will be incomplete
+        last_chunk = df.loc[start_index:]
+        chunks.append((last_chunk, False))
+
+        # Prepare a list to hold the statistics for each cycle
+        cycles_stats = []
+
+        for chunk, is_complete in chunks:
+            if chunk.empty:
+                continue  # Skip empty chunks
+    
+            # Initialize the dictionary for this cycle's stats
+            cycle_stats = {
+                "Cycle Start Date": chunk['Date'].iloc[0],
+                "First CBBI >= 85 Date": None,
+                "Days CBBI >= 85": 0,
+                "Max Price": None,
+                "Date of Max Price": None,
+                "Days to Max Price": None,
+                "First CBBI <= 15 Date": None,
+                "Days CBBI <= 15": 0,
+                "Min Price": None,
+                "Date of Min Price": None,
+                "Days to Min Price": None,
+            }
+    
+            # Check for the first date CBBI reached or rose above 85
+            cbbi_85 = chunk[chunk['CBBI'] >= 85]
+            if not cbbi_85.empty:
+                cycle_stats["First CBBI >= 85 Date"] = cbbi_85['Date'].iloc[0]
+                cycle_stats["Days CBBI >= 85"] = len(cbbi_85)
+    
+            # Maximum price and its date
+            max_price_row = chunk.loc[chunk['Price'].idxmax()]
+            cycle_stats["Max Price"] = max_price_row['Price']
+            cycle_stats["Date of Max Price"] = max_price_row['Date']
+            cycle_stats["Days to Max Price"] = (max_price_row['Date'] - chunk['Date'].iloc[0]).days
+    
+            # Check for the first date CBBI reached or fell below 15
+            cbbi_15 = chunk[chunk['CBBI'] <= 15]
+            if not cbbi_15.empty:
+                cycle_stats["First CBBI <= 15 Date"] = cbbi_15['Date'].iloc[0]
+                cycle_stats["Days CBBI <= 15"] = len(cbbi_15)
+    
+            # Minimum price and its date
+            min_price_row = chunk.loc[chunk['Price'].idxmin()]
+            cycle_stats["Min Price"] = min_price_row['Price']
+            cycle_stats["Date of Min Price"] = min_price_row['Date']
+            cycle_stats["Days to Min Price"] = (min_price_row['Date'] - chunk['Date'].iloc[0]).days
+    
+            # Add the stats for this cycle to the list
+            cycles_stats.append(cycle_stats)
+
+        # Convert the list of dictionaries to a DataFrame for easy display
+        cycles_stats_df = pd.DataFrame(cycles_stats)
+
+        # Assuming you're using Streamlit, display the DataFrame
+        st.write("Cycle Statistics", cycles_stats_df)
 
 if __name__ == "__main__":
     main()
