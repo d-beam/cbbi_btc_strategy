@@ -202,16 +202,19 @@ def main():
             chunk['Date'] = pd.to_datetime(chunk['Date'])  # Ensure Date is in datetime format
             cycle_stats = {
                 "Cycle Start Date": chunk.iloc[0]['Date'].date(),
+                "Cycle Length": (chunk['Date'].iloc[-1] - chunk['Date'].iloc[0]).days,  # Cycle length in days
                 "First CBBI >= 85 Date": None,
                 "Days CBBI >= 85": 0,
                 "Cycle Top": None,
                 "Date of Cycle Top": None,
                 "Days to Cycle Top": None,
+                "Relative Top Position": None,  # Relative measure of when the top was reached
                 "First CBBI <= 15 Date": None,
                 "Days CBBI <= 15": 0,
                 "Cycle Bottom": None,
                 "Date of Cycle Bottom": None,
                 "Days to Cycle Bottom": None,
+                "Relative Bottom Position": None,  # Relative measure of when the bottom was reached
             }
 
             # Finding first valid CBBI >= 85 crossing
@@ -251,6 +254,12 @@ def main():
                     cycle_stats["Cycle Bottom"] = bottom_price_row['Price']
                     cycle_stats["Date of Cycle Bottom"] = bottom_price_row['Date'].date()
                     cycle_stats["Days to Cycle Bottom"] = (bottom_price_row['Date'] - chunk.iloc[0]['Date']).days
+            
+            if cycle_stats["Days to Cycle Top"] is not None:
+                cycle_stats["Relative Top Position"] = cycle_stats["Days to Cycle Top"] / cycle_stats["Cycle Length"]
+            if cycle_stats["Days to Cycle Bottom"] is not None:
+                cycle_stats["Relative Bottom Position"] = cycle_stats["Days to Cycle Bottom"] / cycle_stats["Cycle Length"]
+
             cycles_stats.append(cycle_stats)
 
         cycles_stats_df = pd.DataFrame(cycles_stats)
