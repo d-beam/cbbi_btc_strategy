@@ -273,27 +273,48 @@ def main():
         with col1:
             # First diagram: Days CBBI >= 85 vs Cycle Number
             fig1 = go.Figure(data=go.Scatter(x=cycles_stats_df.index, y=cycles_stats_df['Days CBBI >= 85'], mode='markers+lines', name='Days CBBI >= 85'))
-            fig1.update_layout(title="Days CBBI >= 85 vs Cycle Number", xaxis_title="Cycle Number", yaxis_title="Days CBBI >= 85")
+            fig1.update_layout(
+                title="Days CBBI >= 85 vs Cycle Number",
+                xaxis_title="Cycle Number",
+                yaxis_title="Days CBBI >= 85",
+                xaxis=dict(type='linear', dtick=1, tick0=0, tickformat=".0f")  # Format for integer ticks
+            )
             st.plotly_chart(fig1, use_container_width=True)
 
         with col2:
             # Second diagram: Relative Cycle Top vs Cycle Number
             fig2 = go.Figure(data=go.Scatter(x=cycles_stats_df.index, y=cycles_stats_df['Relative Top Position'], mode='markers+lines', name='Relative Cycle Top'))
-            fig2.update_layout(title="Relative Cycle Top vs Cycle Number", xaxis_title="Cycle Number", yaxis_title="Relative Cycle Top")
+            fig2.update_layout(
+                title="Relative Cycle Top vs Cycle Number",
+                xaxis_title="Cycle Number",
+                yaxis_title="Relative Cycle Top",
+                xaxis=dict(type='linear', dtick=1, tick0=0, tickformat=".0f")  # Format for integer ticks
+            )
             st.plotly_chart(fig2, use_container_width=True)
 
         col3, col4 = st.columns(2)  # Second row with two columns
         with col3:
             # Third diagram: Days CBBI <= 15 vs Cycle Number
             fig3 = go.Figure(data=go.Scatter(x=cycles_stats_df.index, y=cycles_stats_df['Days CBBI <= 15'], mode='markers+lines', name='Days CBBI <= 15'))
-            fig3.update_layout(title="Days CBBI <= 15 vs Cycle Number", xaxis_title="Cycle Number", yaxis_title="Days CBBI <= 15")
+            fig3.update_layout(
+                title="Days CBBI <= 15 vs Cycle Number",
+                xaxis_title="Cycle Number",
+                yaxis_title="Days CBBI <= 15",
+                xaxis=dict(type='linear', dtick=1, tick0=0, tickformat=".0f")  # Format for integer ticks
+            )
             st.plotly_chart(fig3, use_container_width=True)
 
         with col4:
             # Fourth diagram: Relative Cycle Bottom vs Cycle Number
             fig4 = go.Figure(data=go.Scatter(x=cycles_stats_df.index, y=cycles_stats_df['Relative Bottom Position'], mode='markers+lines', name='Relative Cycle Bottom'))
-            fig4.update_layout(title="Relative Cycle Bottom vs Cycle Number", xaxis_title="Cycle Number", yaxis_title="Relative Cycle Bottom")
+            fig4.update_layout(
+                title="Relative Cycle Bottom vs Cycle Number",
+                xaxis_title="Cycle Number",
+                yaxis_title="Relative Cycle Bottom",
+                xaxis=dict(type='linear', dtick=1, tick0=0, tickformat=".0f")  # Format for integer ticks
+            )
             st.plotly_chart(fig4, use_container_width=True)
+
 
 if __name__ == "__main__":
     main()
