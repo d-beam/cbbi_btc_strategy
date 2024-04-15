@@ -7,6 +7,7 @@ import numpy as np
 from datetime import datetime
 from scipy.interpolate import interp1d
 
+
 # Set the page to wide mode
 st.set_page_config(layout="wide")
 
@@ -41,8 +42,8 @@ def fetch_and_process_data(url):
 def check_persistence(series, threshold, above=True, min_days=5):
     count = 0
     dates = series.index.tolist()  # Ensure we have a list of dates/indexes to work with
-    
-    for i, (date, value) in enumerate(series.iteritems()):
+
+    for i, (date, value) in enumerate(series.items()):
         valid = value >= threshold if above else value <= threshold
         if valid:
             count += 1
@@ -61,7 +62,7 @@ def interpolate_and_normalize(chunk, max_length):
     # Original dates and values
     original_dates = np.linspace(0, 1, len(chunk))
     target_dates = np.linspace(0, 1, max_length)
-    
+
     # Interpolate CBBI and Price
     price_interpolator = interp1d(original_dates, chunk['Price'], kind='linear')
     cbbi_interpolator = interp1d(original_dates, chunk['CBBI'], kind='linear')
@@ -240,7 +241,7 @@ def main():
                     cycle_stats["Cycle Top"] = top_price_row['Price']
                     cycle_stats["Date of Cycle Top"] = top_price_row['Date'].date()
                     cycle_stats["Days to Cycle Top"] = (top_price_row['Date'] - chunk.iloc[0]['Date']).days
-            
+
             # Update for finding the first valid CBBI <= 15 crossing for Cycle Bottom determination
             if first_below_15_index:
                 first_below_15_date = chunk.loc[first_below_15_index, 'Date']
@@ -254,7 +255,7 @@ def main():
                     cycle_stats["Cycle Bottom"] = bottom_price_row['Price']
                     cycle_stats["Date of Cycle Bottom"] = bottom_price_row['Date'].date()
                     cycle_stats["Days to Cycle Bottom"] = (bottom_price_row['Date'] - chunk.iloc[0]['Date']).days
-            
+
             if cycle_stats["Days to Cycle Top"] is not None:
                 cycle_stats["Relative Top Position"] = cycle_stats["Days to Cycle Top"] / cycle_stats["Cycle Length"]
             if cycle_stats["Days to Cycle Bottom"] is not None:
@@ -263,58 +264,36 @@ def main():
             cycles_stats.append(cycle_stats)
 
         cycles_stats_df = pd.DataFrame(cycles_stats)
-        
+
         # Display the cycle statistics table in Streamlit
         st.write("Cycle Statistics", cycles_stats_df)
 
-        # Calculate interpolated and normalized chunks
-        interpolated_normalized_chunks = [interpolate_and_normalize(chunk, max_length) for chunk, is_complete in chunks if not chunk.empty]
+        # Start creating the layout
+        col1, col2 = st.columns(2)  # First row with two columns
+        with col1:
+            # First diagram: Days CBBI >= 85 vs Cycle Number
+            fig1 = go.Figure(data=go.Scatter(x=cycles_stats_df.index, y=cycles_stats_df['Days CBBI >= 85'], mode='markers+lines', name='Days CBBI >= 85'))
+            fig1.update_layout(title="Days CBBI >= 85 vs Cycle Number", xaxis_title="Cycle Number", yaxis_title="Days CBBI >= 85")
+            st.plotly_chart(fig1, use_container_width=True)
 
-        # Plot interpolated and normalized Price
-        fig = go.Figure()
+        with col2:
+            # Second diagram: Relative Cycle Top vs Cycle Number
+            fig2 = go.Figure(data=go.Scatter(x=cycles_stats_df.index, y=cycles_stats_df['Relative Top Position'], mode='markers+lines', name='Relative Cycle Top'))
+            fig2.update_layout(title="Relative Cycle Top vs Cycle Number", xaxis_title="Cycle Number", yaxis_title="Relative Cycle Top")
+            st.plotly_chart(fig2, use_container_width=True)
 
-        # Add a line trace for the normalized price of each chunk
-        for i, chunk in enumerate(interpolated_normalized_chunks):
-            fig.add_trace(go.Scatter(
-                x=chunk['Normalized Days'],
-                y=chunk['Normalized Price'],
-                mode='lines',
-                name=f'Cycle {i}'
-            ))
+        col3, col4 = st.columns(2)  # Second row with two columns
+        with col3:
+            # Third diagram: Days CBBI <= 15 vs Cycle Number
+            fig3 = go.Figure(data=go.Scatter(x=cycles_stats_df.index, y=cycles_stats_df['Days CBBI <= 15'], mode='markers+lines', name='Days CBBI <= 15'))
+            fig3.update_layout(title="Days CBBI <= 15 vs Cycle Number", xaxis_title="Cycle Number", yaxis_title="Days CBBI <= 15")
+            st.plotly_chart(fig3, use_container_width=True)
 
-        # Update the layout to suit your preferences
-        fig.update_layout(
-            title='Normalized Price of Each Cycle',
-            xaxis_title='Normalized Days',
-            yaxis_title='Normalized Price',
-            legend_title='Cycles'
-        )
-
-        # Display the figure in Streamlit
-        st.plotly_chart(fig, use_container_width=True)
-
-        # Create a new Plotly figure for the CBBI
-        fig_cbbi = go.Figure()
-
-        # Add a line trace for the normalized CBBI of each chunk
-        for i, chunk in enumerate(interpolated_normalized_chunks):
-            fig_cbbi.add_trace(go.Scatter(
-                x=chunk['Normalized Days'],
-                y=chunk['Normalized CBBI'],
-                mode='lines',
-                name=f'Cycle {i}'  # Keeping the cycle count starting from 0
-            ))
-
-        # Update the layout for the CBBI plot
-        fig_cbbi.update_layout(
-            title='Normalized CBBI of Each Cycle',
-            xaxis_title='Normalized Days',
-            yaxis_title='Normalized CBBI',
-            legend_title='Cycles'
-        )
-
-        # Display the CBBI figure in Streamlit
-        st.plotly_chart(fig_cbbi, use_container_width=True)
+        with col4:
+            # Fourth diagram: Relative Cycle Bottom vs Cycle Number
+            fig4 = go.Figure(data=go.Scatter(x=cycles_stats_df.index, y=cycles_stats_df['Relative Bottom Position'], mode='markers+lines', name='Relative Cycle Bottom'))
+            fig4.update_layout(title="Relative Cycle Bottom vs Cycle Number", xaxis_title="Cycle Number", yaxis_title="Relative Cycle Bottom")
+            st.plotly_chart(fig4, use_container_width=True)
 
 if __name__ == "__main__":
     main()
