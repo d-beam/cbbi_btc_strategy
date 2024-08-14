@@ -39,6 +39,7 @@ def fetch_and_process_data(url):
         st.error(f'Other error occurred: {err}')
     return pd.DataFrame()
 
+# Checks whether a cbbi threshold crossing persists
 def check_persistence(series, threshold, above=True, min_days=5):
     count = 0
     dates = series.index.tolist()  # Ensure we have a list of dates/indexes to work with
@@ -55,6 +56,19 @@ def check_persistence(series, threshold, above=True, min_days=5):
 
     return None
 
+# Normalizes cycle chunks data for comparison
+def normalize_cycle_data(chunk):
+    # Normalize time (x-axis) from 0 to 1
+    chunk['Normalized Time'] = (chunk['Date'] - chunk['Date'].min()) / (chunk['Date'].max() - chunk['Date'].min())
+
+    # Normalize price (y-axis) from 0 to 1
+    chunk['Normalized Price'] = (chunk['Price'] - chunk['Price'].min()) / (chunk['Price'].max() - chunk['Price'].min())
+
+    # Normalize CBBI (y-axis) from 0 to 1
+    chunk['Normalized CBBI'] = (chunk['CBBI'] - chunk['CBBI'].min()) / (chunk['CBBI'].max() - chunk['CBBI'].min())
+
+    return chunk
+
 
 def main():
     st.title("Interactive Plot of BTC Data")
@@ -63,15 +77,13 @@ def main():
     df = fetch_and_process_data(url)
 
     if not df.empty:
-        # Create an empty figure
-        fig = go.Figure()
 
+        # Plot BTC Price & CBBI
+        fig = go.Figure()
         # Add BTC Price trace
         fig.add_trace(go.Scatter(x=df['Date'], y=df['Price'], name="BTC Price", mode='lines', line=dict(color='red')))
-
         # Add CBBI trace on the second y-axis
         fig.add_trace(go.Scatter(x=df['Date'], y=df['CBBI'], name="CBBI", mode='lines', line=dict(color='blue'), yaxis='y2'))
-
         # Manually add vertical lines for Bitcoin halving events
         for index, row in bitcoin_halving_data.iterrows():
             halving_date = pd.to_datetime(row['Date']).strftime('%Y-%m-%d')  # Ensure date format is YYYY-MM-DD
@@ -81,7 +93,6 @@ def main():
                           line=dict(color="gray", dash="dash"))
             fig.add_annotation(x=halving_date, y=0.10, xref="x", yref="paper",
                                text=row['Event'], showarrow=False, yanchor="top")
-
         # Add the green and red shading
         fig.add_shape(type="rect",  # Add a rectangular shape for CBBI > 85
               xref="paper",  # Reference the x-axis in paper terms (entire x-axis)
@@ -107,7 +118,6 @@ def main():
               layer="below",  # Ensure the shading is below data points
               line_width=0,  # No border line
         )
-
         # Update figure layout
         fig.update_layout(
             title="",
@@ -118,13 +128,11 @@ def main():
             showlegend=False,
             margin=dict(l=20, r=20, t=40, b=20)
         )
-
         # Display the figure in Streamlit
         st.plotly_chart(fig, use_container_width=True)
 
 
-
-        # Everyting from here on is about extracting cycle
+        # Everyting from here on is about extracting cycle information
         # Extracting halving dates
         halving_dates = pd.to_datetime(bitcoin_halving_data['Date'])
 
@@ -136,45 +144,60 @@ def main():
 
         # Initialize variables for chunking
         chunks = []
+        normalized_chunks = []
         start_index = 0
         is_first_chunk = True
+        # Initialize cycle number
+        cycle_number = 0
 
-        # Iterate through halving dates to create chunks
+        # Iterate through halving dates to create chunks (Chunk processing)
         for halving_date in halving_dates:
             # Find the index of the first occurrence of the halving date in df
             end_index = df[df['Date'] >= halving_date].index.min()
 
-            # Correctly include the halving date in the current chunk
             # Check if the chunk is complete (starts and ends with halving date)
             is_complete = not is_first_chunk and halving_date in df.loc[start_index:end_index]['Date'].values
+            # Correctly include the halving date in the current chunk
             if is_complete or is_first_chunk:
                 # Include the halving date in the chunk
                 chunk = df.loc[start_index:end_index]
             else:
                 # Exclude the first date of the next chunk (halving date) from the current chunk
                 chunk = df.loc[start_index:end_index-1]
-
+            
+            # Add cycle number & Store the original chunk
+            chunk['Cycle Number'] = cycle_number
             chunks.append((chunk, is_complete))
+
+            # Normalize & Store the normalized chunk
+            normalized_chunk = normalize_cycle_data(chunk)
+            normalized_chunk['Cycle Number'] = cycle_number  # Add cycle number to the normalized chunk
+            normalized_chunks.append(normalized_chunk)
 
             # Prepare for the next chunk by starting it from the current halving date
             start_index = end_index
+            cycle_number += 1
             is_first_chunk = False
 
         # Add the remaining data as the last chunk, which will be incomplete
         last_chunk = df.loc[start_index:]
-        chunks.append((last_chunk, False))
+        if not last_chunk.empty:
+            last_chunk['Cycle Number'] = cycle_number
+            chunks.append((last_chunk, False))
+            normalized_last_chunk = normalize_cycle_data(last_chunk)
+            normalized_last_chunk['Cycle Number'] = cycle_number
+            normalized_chunks.append(normalized_last_chunk)
 
-        # Identify the longest chunk for later processing
-        # max_length = max(len(chunk) for chunk, _ in chunks)
 
         cycles_stats = []
 
         for chunk, is_complete in chunks:
             if chunk.empty:
                 continue  # Skip empty chunks
-
+            
             chunk['Date'] = pd.to_datetime(chunk['Date'])  # Ensure Date is in datetime format
             cycle_stats = {
+                "Cycle Number": chunk['Cycle Number'].iloc[0],
                 "Cycle Start Date": chunk.iloc[0]['Date'].date(),
                 "Cycle Length": (chunk['Date'].iloc[-1] - chunk['Date'].iloc[0]).days,  # Cycle length in days
                 "First CBBI >= 85 Date": None,
@@ -229,6 +252,7 @@ def main():
                     cycle_stats["Date of Cycle Bottom"] = bottom_price_row['Date'].date()
                     cycle_stats["Days to Cycle Bottom"] = (bottom_price_row['Date'] - chunk.iloc[0]['Date']).days
 
+            # Calculate the relative Cycle Top/Bottom Position
             if cycle_stats["Days to Cycle Top"] is not None:
                 cycle_stats["Relative Top Position"] = cycle_stats["Days to Cycle Top"] / cycle_stats["Cycle Length"]
             if cycle_stats["Days to Cycle Bottom"] is not None:
@@ -238,9 +262,13 @@ def main():
 
         cycles_stats_df = pd.DataFrame(cycles_stats)
 
+
+
+
         # Display the cycle statistics table in Streamlit
         st.write("Cycle Statistics", cycles_stats_df)
 
+        #From here on it is about the plots
         # Start creating the layout
         col1, col2 = st.columns(2)  # First row with two columns
         with col1:
@@ -287,6 +315,70 @@ def main():
                 xaxis=dict(type='linear', dtick=1, tick0=0, tickformat=".0f")  # Format for integer ticks
             )
             st.plotly_chart(fig4, use_container_width=True)
+
+
+
+
+        # Ab hier kommt der Vergleichs-Plot der normalisierten Price & CBBI 
+
+        # Determine the cycle numbers to exclude (first and last)
+        cycle_numbers = [chunk['Cycle Number'].iloc[0] for chunk in normalized_chunks]
+        first_cycle = min(cycle_numbers)
+        last_cycle = max(cycle_numbers)
+
+        # Filter out the first and last cycles
+        filtered_chunks = [chunk for chunk in normalized_chunks if chunk['Cycle Number'].iloc[0] != first_cycle and chunk['Cycle Number'].iloc[0] != last_cycle]
+
+        # Initialize figures for normalized price and CBBI
+        fig_price = go.Figure()
+        fig_cbbi = go.Figure()
+
+        # Plot each normalized cycle on the same graph
+        for chunk in filtered_chunks:
+            cycle_number = chunk['Cycle Number'].iloc[0]  # Extract cycle number from the normalized chunk
+
+
+            # Plot normalized price
+            fig_price.add_trace(go.Scatter(
+                x=chunk['Normalized Time'],
+                y=chunk['Normalized Price'],
+                mode='lines',
+                name=f"Cycle {cycle_number}"  # Use cycle number for the label
+            ))
+
+            # Plot normalized CBBI
+            fig_cbbi.add_trace(go.Scatter(
+                x=chunk['Normalized Time'],
+                y=chunk['Normalized CBBI'],
+                mode='lines',
+                name=f"Cycle {cycle_number}"  # Use cycle number for the label
+            ))
+
+            # Update layout for normalized price plot
+            fig_price.update_layout(
+                title="Normalized BTC Price Across Cycles",
+                xaxis_title="Normalized Time (0 to 1)",
+                yaxis_title="Normalized Price (0 to 1)",
+                xaxis=dict(type='linear'),
+                yaxis=dict(type='linear'),
+            )
+
+            # Update layout for normalized CBBI plot
+            fig_cbbi.update_layout(
+                title="Normalized CBBI Across Cycles",
+                xaxis_title="Normalized Time (0 to 1)",
+                yaxis_title="Normalized CBBI (0 to 1)",
+                xaxis=dict(type='linear'),
+                yaxis=dict(type='linear'),
+            )
+
+
+        # Display the figures in Streamlit
+        col5, col6 = st.columns(2)
+        with col5:
+            st.plotly_chart(fig_price, use_container_width=True)
+        with col6:
+            st.plotly_chart(fig_cbbi, use_container_width=True)
 
 
 if __name__ == "__main__":
