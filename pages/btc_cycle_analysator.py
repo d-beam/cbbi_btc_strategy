@@ -6,7 +6,7 @@ import plotly.graph_objs as go
 import numpy as np
 from datetime import datetime
 from scipy.interpolate import interp1d
-
+from scipy.stats import linregress
 
 # Set the page to wide mode
 st.set_page_config(layout="wide")
@@ -69,6 +69,37 @@ def normalize_cycle_data(chunk):
 
     return chunk
 
+# Interpolate data to a common time scale
+def interpolate_data(filtered_chunks):
+    # Determine the shortest time series length
+    min_length = min(len(chunk) for chunk in filtered_chunks)
+    
+    # Common time points for interpolation (from 0 to 1 with min_length points)
+    common_time = np.linspace(0, 1, min_length)
+    
+    # Interpolate all chunks to the common time scale
+    interpolated_chunks = []
+    for chunk in filtered_chunks:
+        f_price = interp1d(chunk['Normalized Time'], chunk['Normalized Price'], kind='linear')
+        f_cbbi = interp1d(chunk['Normalized Time'], chunk['Normalized CBBI'], kind='linear')
+        
+        interpolated_chunk = pd.DataFrame({
+            'Normalized Time': common_time,
+            'Normalized Price': f_price(common_time),
+            'Normalized CBBI': f_cbbi(common_time),
+            'Cycle Number': chunk['Cycle Number'].iloc[0]
+        })
+        interpolated_chunks.append(interpolated_chunk)
+    
+    return interpolated_chunks, common_time
+
+# Calculate the mean curve for normalized price and CBBI
+def calculate_mean_curve(interpolated_chunks):
+    mean_price = np.mean([chunk['Normalized Price'] for chunk in interpolated_chunks], axis=0)
+    mean_cbbi = np.mean([chunk['Normalized CBBI'] for chunk in interpolated_chunks], axis=0)
+    
+    return mean_price, mean_cbbi
+
 
 def main():
     st.title("BTC Cycle & CBBI Analysis")
@@ -78,7 +109,7 @@ def main():
 
     if not df.empty:
 
-        # Plot BTC Price & CBBI
+# Plot BTC Price & CBBI
         fig = go.Figure()
         # Add BTC Price trace
         fig.add_trace(go.Scatter(x=df['Date'], y=df['Price'], name="BTC Price", mode='lines', line=dict(color='red')))
@@ -132,7 +163,7 @@ def main():
         st.plotly_chart(fig, use_container_width=True)
 
 
-        # Everyting from here on is about extracting cycle information
+# Chunking
         # Extracting halving dates
         halving_dates = pd.to_datetime(bitcoin_halving_data['Date'])
 
@@ -188,7 +219,7 @@ def main():
             normalized_last_chunk['Cycle Number'] = cycle_number
             normalized_chunks.append(normalized_last_chunk)
 
-
+# Cycle Stats
         cycles_stats = []
 
         for chunk, is_complete in chunks:
@@ -267,21 +298,65 @@ def main():
         st.write(cycles_stats_df)
 
 
-        with st.expander("Extended Statistic Analysis for Finished Cycles (Click to view)"):
-            #From here on it is about the plots
-            # Exclude the first and last cycles
-            filtered_cycles_stats_df = cycles_stats_df.iloc[1:-1]  # Slicing to remove the first and last row
+# Extended Analysis
+        with st.expander("Extended Analysis (Click to view)"):
+
+            # Filter data?
+            filtered_cycles_stats_df = cycles_stats_df.iloc[1:-1]
 
             # Start creating the layout
             col1, col2 = st.columns(2)  # First row with two columns
+
+
             with col1:
                 # First diagram: Days CBBI >= 85 vs Cycle Number
                 fig1 = go.Figure(data=go.Scatter(
-                    x=filtered_cycles_stats_df.index,
-                    y=filtered_cycles_stats_df['Days CBBI >= 85'],
+                    x=cycles_stats_df.index,
+                    y=cycles_stats_df['Days CBBI >= 85'],
                     mode='markers+lines',
                     name='Days CBBI >= 85'
                 ))
+                # Filtered plot overlayed in red
+                fig1.add_trace(go.Scatter(
+                    x=filtered_cycles_stats_df.index,
+                    y=filtered_cycles_stats_df['Days CBBI >= 85'],
+                    mode='markers+lines',
+                    name='Filtered Days CBBI >= 85',
+                    line=dict(color='red')
+                ))
+
+                # Perform linear regression on filtered data
+                slope, intercept, r_value, p_value, std_err = linregress(filtered_cycles_stats_df.index, filtered_cycles_stats_df['Days CBBI >= 85'])
+                
+                # Determine the x-range for the linear fit (from min to extrapolated point)
+                x_min = filtered_cycles_stats_df.index.min()
+                x_max = max(filtered_cycles_stats_df.index) + 1
+                extended_x = np.linspace(x_min, x_max, num=100)  # Create 100 points between min and extrapolated point
+
+                # Compute the linear fit line values
+                extended_y = intercept + slope * extended_x
+                
+                # Plot the linear fit extending to the extrapolated point
+                fig1.add_trace(go.Scatter(
+                    x=extended_x,
+                    y=extended_y,
+                    mode='lines',
+                    name='Extended Linear Fit',
+                    line=dict(color='blue', dash='dash')
+                ))
+
+                # Extrapolate for the next cycle
+                col1_next_cycle = max(filtered_cycles_stats_df.index) + 1
+                col1_extrapolated_value = intercept + slope * col1_next_cycle
+                fig1.add_trace(go.Scatter(
+                    x=[col1_next_cycle],
+                    y=[col1_extrapolated_value],
+                    mode='markers',
+                    name='Extrapolated Point',
+                    marker=dict(color='blue', size=10, symbol='cross')
+                ))
+
+
                 fig1.update_layout(
                     title="Days CBBI >= 85 vs Cycle Number",
                     xaxis_title="Cycle Number",
@@ -290,31 +365,113 @@ def main():
                 )
                 st.plotly_chart(fig1, use_container_width=True)
 
-            with col2:
-                # Second diagram: Relative Cycle Top vs Cycle Number
-                fig2 = go.Figure(data=go.Scatter(
-                    x=filtered_cycles_stats_df.index,
-                    y=filtered_cycles_stats_df['Relative Top Position'],
-                    mode='markers+lines',
-                    name='Relative Cycle Top'
-                ))
-                fig2.update_layout(
-                    title="Relative Cycle Top vs Cycle Number",
-                    xaxis_title="Cycle Number",
-                    yaxis_title="Relative Cycle Top",
-                    xaxis=dict(type='linear', dtick=1, tick0=0, tickformat=".0f")  # Format for integer ticks
-                )
-                st.plotly_chart(fig2, use_container_width=True)
+                with col2:
+                    # Second diagram: Relative Cycle Top vs Cycle Number
+                    fig2 = go.Figure(data=go.Scatter(
+                        x=cycles_stats_df.index,
+                        y=cycles_stats_df['Relative Top Position'],
+                        mode='markers+lines',
+                        name='Relative Cycle Top'
+                    ))
+                    
+                    # Filtered plot overlayed in red
+                    fig2.add_trace(go.Scatter(
+                        x=filtered_cycles_stats_df.index,
+                        y=filtered_cycles_stats_df['Relative Top Position'],
+                        mode='markers+lines',
+                        name='Filtered Relative Cycle Top',
+                        line=dict(color='red')
+                    ))
+
+                    # Perform linear regression on filtered data
+                    slope, intercept, r_value, p_value, std_err = linregress(filtered_cycles_stats_df.index, filtered_cycles_stats_df['Relative Top Position'])
+                    
+                    # Determine the x-range for the linear fit (from min to extrapolated point)
+                    x_min = filtered_cycles_stats_df.index.min()
+                    x_max = max(filtered_cycles_stats_df.index) + 1
+                    extended_x = np.linspace(x_min, x_max, num=100)
+
+                    # Compute the linear fit line values
+                    extended_y = intercept + slope * extended_x
+                    
+                    # Plot the linear fit extending to the extrapolated point
+                    fig2.add_trace(go.Scatter(
+                        x=extended_x,
+                        y=extended_y,
+                        mode='lines',
+                        name='Extended Linear Fit',
+                        line=dict(color='blue', dash='dash')
+                    ))
+
+                    # Extrapolate for the next cycle
+                    col2_next_cycle = max(filtered_cycles_stats_df.index) + 1
+                    col2_extrapolated_value = intercept + slope * col2_next_cycle
+                    fig2.add_trace(go.Scatter(
+                        x=[col2_next_cycle],
+                        y=[col2_extrapolated_value],
+                        mode='markers',
+                        name='Extrapolated Point',
+                        marker=dict(color='blue', size=10, symbol='cross')
+                    ))
+
+                    fig2.update_layout(
+                        title="Relative Cycle Top vs Cycle Number",
+                        xaxis_title="Cycle Number",
+                        yaxis_title="Relative Cycle Top",
+                        xaxis=dict(type='linear', dtick=1, tick0=0, tickformat=".0f")  # Format for integer ticks
+                    )
+                    st.plotly_chart(fig2, use_container_width=True)
 
             col3, col4 = st.columns(2)  # Second row with two columns
             with col3:
                 # Third diagram: Days CBBI <= 15 vs Cycle Number
                 fig3 = go.Figure(data=go.Scatter(
-                    x=filtered_cycles_stats_df.index,
-                    y=filtered_cycles_stats_df['Days CBBI <= 15'],
+                    x=cycles_stats_df.index,
+                    y=cycles_stats_df['Days CBBI <= 15'],
                     mode='markers+lines',
                     name='Days CBBI <= 15'
                 ))
+
+                # Filtered plot overlayed in red
+                fig3.add_trace(go.Scatter(
+                    x=filtered_cycles_stats_df.index,
+                    y=filtered_cycles_stats_df['Days CBBI <= 15'],
+                    mode='markers+lines',
+                    name='Filtered Days CBBI <= 15',
+                    line=dict(color='red')
+                ))
+
+                # Perform linear regression on filtered data
+                slope, intercept, r_value, p_value, std_err = linregress(filtered_cycles_stats_df.index, filtered_cycles_stats_df['Days CBBI <= 15'])
+                
+                # Determine the x-range for the linear fit (from min to extrapolated point)
+                x_min = filtered_cycles_stats_df.index.min()
+                x_max = max(filtered_cycles_stats_df.index) + 1
+                extended_x = np.linspace(x_min, x_max, num=100)
+
+                # Compute the linear fit line values
+                extended_y = intercept + slope * extended_x
+                
+                # Plot the linear fit extending to the extrapolated point
+                fig3.add_trace(go.Scatter(
+                    x=extended_x,
+                    y=extended_y,
+                    mode='lines',
+                    name='Extended Linear Fit',
+                    line=dict(color='blue', dash='dash')
+                ))
+
+                # Extrapolate for the next cycle
+                col3_next_cycle = max(filtered_cycles_stats_df.index) + 1
+                col3_extrapolated_value = intercept + slope * col3_next_cycle
+                fig3.add_trace(go.Scatter(
+                    x=[col3_next_cycle],
+                    y=[col3_extrapolated_value],
+                    mode='markers',
+                    name='Extrapolated Point',
+                    marker=dict(color='blue', size=10, symbol='cross')
+                ))
+
                 fig3.update_layout(
                     title="Days CBBI <= 15 vs Cycle Number",
                     xaxis_title="Cycle Number",
@@ -326,11 +483,52 @@ def main():
             with col4:
                 # Fourth diagram: Relative Cycle Bottom vs Cycle Number
                 fig4 = go.Figure(data=go.Scatter(
-                    x=filtered_cycles_stats_df.index,
-                    y=filtered_cycles_stats_df['Relative Bottom Position'],
+                    x=cycles_stats_df.index,
+                    y=cycles_stats_df['Relative Bottom Position'],
                     mode='markers+lines',
                     name='Relative Cycle Bottom'
                 ))
+
+                # Filtered plot overlayed in red
+                fig4.add_trace(go.Scatter(
+                    x=filtered_cycles_stats_df.index,
+                    y=filtered_cycles_stats_df['Relative Bottom Position'],
+                    mode='markers+lines',
+                    name='Filtered Relative Cycle Bottom',
+                    line=dict(color='red')
+                ))
+
+                # Perform linear regression on filtered data
+                slope, intercept, r_value, p_value, std_err = linregress(filtered_cycles_stats_df.index, filtered_cycles_stats_df['Relative Bottom Position'])
+                
+                # Determine the x-range for the linear fit (from min to extrapolated point)
+                x_min = filtered_cycles_stats_df.index.min()
+                x_max = max(filtered_cycles_stats_df.index) + 1
+                extended_x = np.linspace(x_min, x_max, num=100)
+
+                # Compute the linear fit line values
+                extended_y = intercept + slope * extended_x
+                
+                # Plot the linear fit extending to the extrapolated point
+                fig4.add_trace(go.Scatter(
+                    x=extended_x,
+                    y=extended_y,
+                    mode='lines',
+                    name='Extended Linear Fit',
+                    line=dict(color='blue', dash='dash')
+                ))
+
+                # Extrapolate for the next cycle
+                col4_next_cycle = max(filtered_cycles_stats_df.index) + 1
+                col4_extrapolated_value = intercept + slope * col4_next_cycle
+                fig4.add_trace(go.Scatter(
+                    x=[col4_next_cycle],
+                    y=[col4_extrapolated_value],
+                    mode='markers',
+                    name='Extrapolated Point',
+                    marker=dict(color='blue', size=10, symbol='cross')
+                ))
+
                 fig4.update_layout(
                     title="Relative Cycle Bottom vs Cycle Number",
                     xaxis_title="Cycle Number",
@@ -342,7 +540,7 @@ def main():
 
 
 
-        # Ab hier kommt der Vergleichs-Plot der normalisierten Price & CBBI
+# Cycle Comparison
         st.subheader("Cycle Comparison")
 
         # Determine the cycle numbers to exclude (first and last)
@@ -353,21 +551,26 @@ def main():
         # Filter out the first and last cycles
         filtered_chunks = [chunk for chunk in normalized_chunks if chunk['Cycle Number'].iloc[0] != first_cycle and chunk['Cycle Number'].iloc[0] != last_cycle]
 
+        # Interpolate data to a common time scale
+        interpolated_chunks, common_time = interpolate_data(filtered_chunks)
+
+        # Calculate the mean curve for the normalized price and CBBI
+        mean_price, mean_cbbi = calculate_mean_curve(interpolated_chunks)
+
         # Initialize figures for normalized price and CBBI
         fig_price = go.Figure()
         fig_cbbi = go.Figure()
 
         # Plot each normalized cycle on the same graph
-        for chunk in filtered_chunks:
+        for chunk in interpolated_chunks:
             cycle_number = chunk['Cycle Number'].iloc[0]  # Extract cycle number from the normalized chunk
-
 
             # Plot normalized price
             fig_price.add_trace(go.Scatter(
                 x=chunk['Normalized Time'],
                 y=chunk['Normalized Price'],
                 mode='lines',
-                name=f"Cycle {cycle_number}"  # Use cycle number for the label
+                name=f"Cycle {cycle_number}",
             ))
 
             # Plot normalized CBBI
@@ -375,27 +578,44 @@ def main():
                 x=chunk['Normalized Time'],
                 y=chunk['Normalized CBBI'],
                 mode='lines',
-                name=f"Cycle {cycle_number}"  # Use cycle number for the label
+                name=f"Cycle {cycle_number}",
             ))
 
-            # Update layout for normalized price plot
-            fig_price.update_layout(
-                title="Normalized BTC Price Across Cycles",
-                xaxis_title="Normalized Time (0 to 1)",
-                yaxis_title="Normalized Price (0 to 1)",
-                xaxis=dict(type='linear'),
-                yaxis=dict(type='linear'),
-            )
+        # Add mean curve for normalized price
+        fig_price.add_trace(go.Scatter(
+            x=common_time,
+            y=mean_price,
+            mode='lines',
+            name="Mean Price",
+            line=dict(color='black', width=4)  # Solid thick line for the mean
+        ))
 
-            # Update layout for normalized CBBI plot
-            fig_cbbi.update_layout(
-                title="Normalized CBBI Across Cycles",
-                xaxis_title="Normalized Time (0 to 1)",
-                yaxis_title="Normalized CBBI (0 to 1)",
-                xaxis=dict(type='linear'),
-                yaxis=dict(type='linear'),
-            )
+        # Add mean curve for normalized CBBI
+        fig_cbbi.add_trace(go.Scatter(
+            x=common_time,
+            y=mean_cbbi,
+            mode='lines',
+            name="Mean CBBI",
+            line=dict(color='black', width=4)  # Solid thick line for the mean
+        ))
 
+        # Update layout for normalized price plot
+        fig_price.update_layout(
+            title="Normalized BTC Price Across Cycles with Mean",
+            xaxis_title="Normalized Cycle Time",
+            yaxis_title="Normalized Price",
+            xaxis=dict(type='linear'),
+            yaxis=dict(type='linear'),
+        )
+
+        # Update layout for normalized CBBI plot
+        fig_cbbi.update_layout(
+            title="Normalized CBBI Across Cycles with Mean",
+            xaxis_title="Normalized Cycle Time",
+            yaxis_title="Normalized CBBI",
+            xaxis=dict(type='linear'),
+            yaxis=dict(type='linear'),
+        )
 
         # Display the figures in Streamlit
         col5, col6 = st.columns(2)
