@@ -73,16 +73,16 @@ def normalize_cycle_data(chunk):
 def interpolate_data(filtered_chunks):
     # Determine the shortest time series length
     min_length = min(len(chunk) for chunk in filtered_chunks)
-    
+
     # Common time points for interpolation (from 0 to 1 with min_length points)
     common_time = np.linspace(0, 1, min_length)
-    
+
     # Interpolate all chunks to the common time scale
     interpolated_chunks = []
     for chunk in filtered_chunks:
         f_price = interp1d(chunk['Normalized Time'], chunk['Normalized Price'], kind='linear')
         f_cbbi = interp1d(chunk['Normalized Time'], chunk['Normalized CBBI'], kind='linear')
-        
+
         interpolated_chunk = pd.DataFrame({
             'Normalized Time': common_time,
             'Normalized Price': f_price(common_time),
@@ -90,14 +90,14 @@ def interpolate_data(filtered_chunks):
             'Cycle Number': chunk['Cycle Number'].iloc[0]
         })
         interpolated_chunks.append(interpolated_chunk)
-    
+
     return interpolated_chunks, common_time
 
 # Calculate the mean curve for normalized price and CBBI
 def calculate_mean_curve(interpolated_chunks):
     mean_price = np.mean([chunk['Normalized Price'] for chunk in interpolated_chunks], axis=0)
     mean_cbbi = np.mean([chunk['Normalized CBBI'] for chunk in interpolated_chunks], axis=0)
-    
+
     return mean_price, mean_cbbi
 
 
@@ -301,15 +301,24 @@ def main():
 # Extended Analysis
         with st.expander("Extended Analysis (Click to view)"):
 
-            # Filter data?
-            filtered_cycles_stats_df = cycles_stats_df.iloc[1:-1]
-
             # Start creating the layout
             col1, col2 = st.columns(2)  # First row with two columns
 
-
             with col1:
-                # First diagram: Days CBBI >= 85 vs Cycle Number
+                # First diagram: Days CBBI >= 85
+                st.subheader("Days CBBI >= 85")
+
+                # Place checkboxes below the title
+                neglect_first = st.checkbox('Neglect First Cycle', key="neglect_first_1", value=True)
+                neglect_last = st.checkbox('Neglect Last Cycle', key="neglect_last_1", value=True)
+
+
+                # Filter data based on checkbox state
+                start_idx = 1 if neglect_first else 0
+                end_idx = -1 if neglect_last else None
+                col1_filtered_cycles_stats_df = cycles_stats_df.iloc[start_idx:end_idx]
+
+                # First diagram: Days CBBI >= 85
                 fig1 = go.Figure(data=go.Scatter(
                     x=cycles_stats_df.index,
                     y=cycles_stats_df['Days CBBI >= 85'],
@@ -318,105 +327,116 @@ def main():
                 ))
                 # Filtered plot overlayed in red
                 fig1.add_trace(go.Scatter(
-                    x=filtered_cycles_stats_df.index,
-                    y=filtered_cycles_stats_df['Days CBBI >= 85'],
+                    x=col1_filtered_cycles_stats_df.index,
+                    y=col1_filtered_cycles_stats_df['Days CBBI >= 85'],
                     mode='markers+lines',
                     name='Filtered Days CBBI >= 85',
                     line=dict(color='red')
                 ))
 
                 # Perform linear regression on filtered data
-                slope, intercept, r_value, p_value, std_err = linregress(filtered_cycles_stats_df.index, filtered_cycles_stats_df['Days CBBI >= 85'])
-                
+                slope, intercept, r_value, p_value, std_err = linregress(col1_filtered_cycles_stats_df.index, col1_filtered_cycles_stats_df['Days CBBI >= 85'])
+
+
                 # Determine the x-range for the linear fit (from min to extrapolated point)
-                x_min = filtered_cycles_stats_df.index.min()
-                x_max = max(filtered_cycles_stats_df.index) + 1
+                x_min = col1_filtered_cycles_stats_df.index.min()
+                x_max = max(col1_filtered_cycles_stats_df.index) + 1
                 extended_x = np.linspace(x_min, x_max, num=100)  # Create 100 points between min and extrapolated point
 
                 # Compute the linear fit line values
                 extended_y = intercept + slope * extended_x
-                
+
                 # Plot the linear fit extending to the extrapolated point
                 fig1.add_trace(go.Scatter(
                     x=extended_x,
                     y=extended_y,
                     mode='lines',
                     name='Extended Linear Fit',
-                    line=dict(color='blue', dash='dash')
+                    line=dict(color='red', dash='dash')
                 ))
 
                 # Extrapolate for the next cycle
-                col1_next_cycle = max(filtered_cycles_stats_df.index) + 1
+                col1_next_cycle = max(col1_filtered_cycles_stats_df.index) + 1
                 col1_extrapolated_value = intercept + slope * col1_next_cycle
                 fig1.add_trace(go.Scatter(
                     x=[col1_next_cycle],
                     y=[col1_extrapolated_value],
                     mode='markers',
                     name='Extrapolated Point',
-                    marker=dict(color='blue', size=10, symbol='cross')
+                    marker=dict(color='red', size=10, symbol='cross')
                 ))
 
 
                 fig1.update_layout(
-                    title="Days CBBI >= 85 vs Cycle Number",
-                    xaxis_title="Cycle Number",
+                    xaxis_title="BTC Cycle",
                     yaxis_title="Days CBBI >= 85",
                     xaxis=dict(type='linear', dtick=1, tick0=0, tickformat=".0f")  # Format for integer ticks
                 )
                 st.plotly_chart(fig1, use_container_width=True)
 
                 with col2:
-                    # Second diagram: Relative Cycle Top vs Cycle Number
+                    # Second diagram: Relative Cycle Top
+                    st.subheader("Relative Cycle Top")
+
+                    # Place checkboxes below the title
+                    neglect_first = st.checkbox('Neglect First Cycle', key="neglect_first_2", value=True)
+                    neglect_last = st.checkbox('Neglect Last Cycle', key="neglect_last_2", value=True)
+
+                    # Filter data based on checkbox state
+                    start_idx = 1 if neglect_first else 0
+                    end_idx = -1 if neglect_last else None
+                    col2_filtered_cycles_stats_df = cycles_stats_df.iloc[start_idx:end_idx]
+
                     fig2 = go.Figure(data=go.Scatter(
                         x=cycles_stats_df.index,
                         y=cycles_stats_df['Relative Top Position'],
                         mode='markers+lines',
                         name='Relative Cycle Top'
                     ))
-                    
+
                     # Filtered plot overlayed in red
                     fig2.add_trace(go.Scatter(
-                        x=filtered_cycles_stats_df.index,
-                        y=filtered_cycles_stats_df['Relative Top Position'],
+                        x=col2_filtered_cycles_stats_df.index,
+                        y=col2_filtered_cycles_stats_df['Relative Top Position'],
                         mode='markers+lines',
                         name='Filtered Relative Cycle Top',
                         line=dict(color='red')
                     ))
 
                     # Perform linear regression on filtered data
-                    slope, intercept, r_value, p_value, std_err = linregress(filtered_cycles_stats_df.index, filtered_cycles_stats_df['Relative Top Position'])
-                    
+                    slope, intercept, r_value, p_value, std_err = linregress(col2_filtered_cycles_stats_df.index, col2_filtered_cycles_stats_df['Relative Top Position'])
+
+
                     # Determine the x-range for the linear fit (from min to extrapolated point)
-                    x_min = filtered_cycles_stats_df.index.min()
-                    x_max = max(filtered_cycles_stats_df.index) + 1
+                    x_min = col2_filtered_cycles_stats_df.index.min()
+                    x_max = max(col2_filtered_cycles_stats_df.index) + 1
                     extended_x = np.linspace(x_min, x_max, num=100)
 
                     # Compute the linear fit line values
                     extended_y = intercept + slope * extended_x
-                    
+
                     # Plot the linear fit extending to the extrapolated point
                     fig2.add_trace(go.Scatter(
                         x=extended_x,
                         y=extended_y,
                         mode='lines',
                         name='Extended Linear Fit',
-                        line=dict(color='blue', dash='dash')
+                        line=dict(color='red', dash='dash')
                     ))
 
                     # Extrapolate for the next cycle
-                    col2_next_cycle = max(filtered_cycles_stats_df.index) + 1
+                    col2_next_cycle = max(col2_filtered_cycles_stats_df.index) + 1
                     col2_extrapolated_value = intercept + slope * col2_next_cycle
                     fig2.add_trace(go.Scatter(
                         x=[col2_next_cycle],
                         y=[col2_extrapolated_value],
                         mode='markers',
                         name='Extrapolated Point',
-                        marker=dict(color='blue', size=10, symbol='cross')
+                        marker=dict(color='red', size=10, symbol='cross')
                     ))
 
                     fig2.update_layout(
-                        title="Relative Cycle Top vs Cycle Number",
-                        xaxis_title="Cycle Number",
+                        xaxis_title="BTC Cycle",
                         yaxis_title="Relative Cycle Top",
                         xaxis=dict(type='linear', dtick=1, tick0=0, tickformat=".0f")  # Format for integer ticks
                     )
@@ -424,7 +444,19 @@ def main():
 
             col3, col4 = st.columns(2)  # Second row with two columns
             with col3:
-                # Third diagram: Days CBBI <= 15 vs Cycle Number
+                # Third diagram: Days CBBI <= 15
+                st.subheader("Days CBBI <= 15")
+
+                # Place checkboxes below the title
+                neglect_first = st.checkbox('Neglect First Cycle', key="neglect_first_3", value=False)
+                neglect_last = st.checkbox('Neglect Last Cycle', key="neglect_last_3", value=True)
+
+                # Filter data based on checkbox state
+                start_idx = 1 if neglect_first else 0
+                end_idx = -1 if neglect_last else None
+                col3_filtered_cycles_stats_df = cycles_stats_df.iloc[start_idx:end_idx]
+
+
                 fig3 = go.Figure(data=go.Scatter(
                     x=cycles_stats_df.index,
                     y=cycles_stats_df['Days CBBI <= 15'],
@@ -434,54 +466,65 @@ def main():
 
                 # Filtered plot overlayed in red
                 fig3.add_trace(go.Scatter(
-                    x=filtered_cycles_stats_df.index,
-                    y=filtered_cycles_stats_df['Days CBBI <= 15'],
+                    x=col3_filtered_cycles_stats_df.index,
+                    y=col3_filtered_cycles_stats_df['Days CBBI <= 15'],
                     mode='markers+lines',
                     name='Filtered Days CBBI <= 15',
                     line=dict(color='red')
                 ))
 
                 # Perform linear regression on filtered data
-                slope, intercept, r_value, p_value, std_err = linregress(filtered_cycles_stats_df.index, filtered_cycles_stats_df['Days CBBI <= 15'])
-                
+                slope, intercept, r_value, p_value, std_err = linregress(col3_filtered_cycles_stats_df.index, col3_filtered_cycles_stats_df['Days CBBI <= 15'])
+
                 # Determine the x-range for the linear fit (from min to extrapolated point)
-                x_min = filtered_cycles_stats_df.index.min()
-                x_max = max(filtered_cycles_stats_df.index) + 1
+                x_min = col3_filtered_cycles_stats_df.index.min()
+                x_max = max(col3_filtered_cycles_stats_df.index) + 1
                 extended_x = np.linspace(x_min, x_max, num=100)
 
                 # Compute the linear fit line values
                 extended_y = intercept + slope * extended_x
-                
+
                 # Plot the linear fit extending to the extrapolated point
                 fig3.add_trace(go.Scatter(
                     x=extended_x,
                     y=extended_y,
                     mode='lines',
                     name='Extended Linear Fit',
-                    line=dict(color='blue', dash='dash')
+                    line=dict(color='red', dash='dash')
                 ))
 
                 # Extrapolate for the next cycle
-                col3_next_cycle = max(filtered_cycles_stats_df.index) + 1
+                col3_next_cycle = max(col3_filtered_cycles_stats_df.index) + 1
                 col3_extrapolated_value = intercept + slope * col3_next_cycle
                 fig3.add_trace(go.Scatter(
                     x=[col3_next_cycle],
                     y=[col3_extrapolated_value],
                     mode='markers',
                     name='Extrapolated Point',
-                    marker=dict(color='blue', size=10, symbol='cross')
+                    marker=dict(color='red', size=10, symbol='cross')
                 ))
 
                 fig3.update_layout(
-                    title="Days CBBI <= 15 vs Cycle Number",
-                    xaxis_title="Cycle Number",
+                    xaxis_title="BTC Cycle",
                     yaxis_title="Days CBBI <= 15",
                     xaxis=dict(type='linear', dtick=1, tick0=0, tickformat=".0f")  # Format for integer ticks
                 )
                 st.plotly_chart(fig3, use_container_width=True)
 
             with col4:
-                # Fourth diagram: Relative Cycle Bottom vs Cycle Number
+                # Fourth diagram: Relative Cycle Bottom
+                st.subheader("Relative Cycle Bottom")
+
+                # Place checkboxes below the title
+                neglect_first = st.checkbox('Neglect First Cycle', key="neglect_first_4", value=True)
+                neglect_last = st.checkbox('Neglect Last Cycle', key="neglect_last_4", value=True)
+
+                # Filter data based on checkbox state
+                start_idx = 1 if neglect_first else 0
+                end_idx = -1 if neglect_last else None
+                col4_filtered_cycles_stats_df = cycles_stats_df.iloc[start_idx:end_idx]
+
+
                 fig4 = go.Figure(data=go.Scatter(
                     x=cycles_stats_df.index,
                     y=cycles_stats_df['Relative Bottom Position'],
@@ -491,47 +534,46 @@ def main():
 
                 # Filtered plot overlayed in red
                 fig4.add_trace(go.Scatter(
-                    x=filtered_cycles_stats_df.index,
-                    y=filtered_cycles_stats_df['Relative Bottom Position'],
+                    x=col4_filtered_cycles_stats_df.index,
+                    y=col4_filtered_cycles_stats_df['Relative Bottom Position'],
                     mode='markers+lines',
                     name='Filtered Relative Cycle Bottom',
                     line=dict(color='red')
                 ))
 
                 # Perform linear regression on filtered data
-                slope, intercept, r_value, p_value, std_err = linregress(filtered_cycles_stats_df.index, filtered_cycles_stats_df['Relative Bottom Position'])
-                
+                slope, intercept, r_value, p_value, std_err = linregress(col4_filtered_cycles_stats_df.index, col4_filtered_cycles_stats_df['Relative Bottom Position'])
+
                 # Determine the x-range for the linear fit (from min to extrapolated point)
-                x_min = filtered_cycles_stats_df.index.min()
-                x_max = max(filtered_cycles_stats_df.index) + 1
+                x_min = col4_filtered_cycles_stats_df.index.min()
+                x_max = max(col4_filtered_cycles_stats_df.index) + 1
                 extended_x = np.linspace(x_min, x_max, num=100)
 
                 # Compute the linear fit line values
                 extended_y = intercept + slope * extended_x
-                
+
                 # Plot the linear fit extending to the extrapolated point
                 fig4.add_trace(go.Scatter(
                     x=extended_x,
                     y=extended_y,
                     mode='lines',
                     name='Extended Linear Fit',
-                    line=dict(color='blue', dash='dash')
+                    line=dict(color='red', dash='dash')
                 ))
 
                 # Extrapolate for the next cycle
-                col4_next_cycle = max(filtered_cycles_stats_df.index) + 1
+                col4_next_cycle = max(col4_filtered_cycles_stats_df.index) + 1
                 col4_extrapolated_value = intercept + slope * col4_next_cycle
                 fig4.add_trace(go.Scatter(
                     x=[col4_next_cycle],
                     y=[col4_extrapolated_value],
                     mode='markers',
                     name='Extrapolated Point',
-                    marker=dict(color='blue', size=10, symbol='cross')
+                    marker=dict(color='red', size=10, symbol='cross')
                 ))
 
                 fig4.update_layout(
-                    title="Relative Cycle Bottom vs Cycle Number",
-                    xaxis_title="Cycle Number",
+                    xaxis_title="BTC Cycle",
                     yaxis_title="Relative Cycle Bottom",
                     xaxis=dict(type='linear', dtick=1, tick0=0, tickformat=".0f")  # Format for integer ticks
                 )
