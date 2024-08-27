@@ -322,7 +322,7 @@ def main():
 
                 with col2:
                     # Second diagram: Relative Cycle Top
-                    st.subheader("Relative Cycle Top")
+                    st.subheader("Relative Cycle Top (Position in Cycle)")
 
                     # Place checkboxes below the title
                     neglect_first = st.checkbox('Neglect First Cycle', key="neglect_first_2", value=True)
@@ -459,7 +459,7 @@ def main():
 
             with col4:
                 # Fourth diagram: Relative Cycle Bottom
-                st.subheader("Relative Cycle Bottom")
+                st.subheader("Relative Cycle Bottom (Position in Cycle)")
 
                 # Place checkboxes below the title
                 neglect_first = st.checkbox('Neglect First Cycle', key="neglect_first_4", value=True)
@@ -526,11 +526,11 @@ def main():
                 st.plotly_chart(fig4, use_container_width=True)
 
             # Adding a new row for Cycle Length and Cycle Top plots
-            col5, col6 = st.columns(2)  # Third row with two columns
+            col5, col6 = st.columns(2)  # Fourth row with two columns
 
             with col5:
-                # Fifth diagram: Cycle Length
-                st.subheader("Cycle Length")
+                # Sixth diagram: Cycle Top
+                st.subheader("Cycle Top")
 
                 # Place checkboxes below the title
                 neglect_first = st.checkbox('Neglect First Cycle', key="neglect_first_5", value=True)
@@ -543,28 +543,27 @@ def main():
 
                 fig5 = go.Figure(data=go.Scatter(
                     x=cycles_stats_df.index,
-                    y=cycles_stats_df['Cycle Length'],
+                    y=cycles_stats_df['Cycle Top'],
                     mode='markers+lines',
-                    name='Cycle Length',
-                    marker=dict(color='blue')
+                    name='Cycle Top'
                 ))
 
                 # Filtered plot overlayed in red
                 fig5.add_trace(go.Scatter(
                     x=col5_filtered_cycles_stats_df.index,
-                    y=col5_filtered_cycles_stats_df['Cycle Length'],
+                    y=col5_filtered_cycles_stats_df['Cycle Top'],
                     mode='markers+lines',
-                    name='Filtered Cycle Length',
-                    marker=dict(color='red')
+                    name='Filtered Cycle Top',
+                    line=dict(color='red')
                 ))
 
                 # Perform linear regression on filtered data
-                slope, intercept, r_value, p_value, std_err = linregress(col5_filtered_cycles_stats_df.index, col5_filtered_cycles_stats_df['Cycle Length'])
+                slope, intercept, r_value, p_value, std_err = linregress(col5_filtered_cycles_stats_df.index, col5_filtered_cycles_stats_df['Cycle Top'])
 
                 # Determine the x-range for the linear fit (from min to extrapolated point)
                 x_min = col5_filtered_cycles_stats_df.index.min()
                 x_max = max(col5_filtered_cycles_stats_df.index) + 1
-                extended_x = np.linspace(x_min, x_max, num=100)  # Create 100 points between min and extrapolated point
+                extended_x = np.linspace(x_min, x_max, num=100)
 
                 # Compute the linear fit line values
                 extended_y = intercept + slope * extended_x
@@ -591,14 +590,14 @@ def main():
 
                 fig5.update_layout(
                     xaxis_title="BTC Cycle",
-                    yaxis_title="Cycle Length (Days)",
+                    yaxis_title="Cycle Top Value",
                     xaxis=dict(type='linear', dtick=1, tickformat=".0f")
                 )
                 st.plotly_chart(fig5, use_container_width=True)
 
             with col6:
-                # Sixth diagram: Cycle Top
-                st.subheader("Cycle Top")
+                # Sixth diagram: Cycle Bottom
+                st.subheader("Cycle Bottom")
 
                 # Place checkboxes below the title
                 neglect_first = st.checkbox('Neglect First Cycle', key="neglect_first_6", value=True)
@@ -611,22 +610,22 @@ def main():
 
                 fig6 = go.Figure(data=go.Scatter(
                     x=cycles_stats_df.index,
-                    y=cycles_stats_df['Cycle Top'],
+                    y=cycles_stats_df['Cycle Bottom'],
                     mode='markers+lines',
-                    name='Cycle Top'
+                    name='Cycle Bottom'
                 ))
 
                 # Filtered plot overlayed in red
                 fig6.add_trace(go.Scatter(
                     x=col6_filtered_cycles_stats_df.index,
-                    y=col6_filtered_cycles_stats_df['Cycle Top'],
+                    y=col6_filtered_cycles_stats_df['Cycle Bottom'],
                     mode='markers+lines',
-                    name='Filtered Cycle Top',
+                    name='Filtered Cycle Bottom',
                     line=dict(color='red')
                 ))
 
                 # Perform linear regression on filtered data
-                slope, intercept, r_value, p_value, std_err = linregress(col6_filtered_cycles_stats_df.index, col6_filtered_cycles_stats_df['Cycle Top'])
+                slope, intercept, r_value, p_value, std_err = linregress(col6_filtered_cycles_stats_df.index, col6_filtered_cycles_stats_df['Cycle Bottom'])
 
                 # Determine the x-range for the linear fit (from min to extrapolated point)
                 x_min = col6_filtered_cycles_stats_df.index.min()
@@ -658,10 +657,81 @@ def main():
 
                 fig6.update_layout(
                     xaxis_title="BTC Cycle",
-                    yaxis_title="Cycle Top Value",
+                    yaxis_title="Cycle Bottom Value",
                     xaxis=dict(type='linear', dtick=1, tickformat=".0f")
                 )
                 st.plotly_chart(fig6, use_container_width=True)
+
+            # Adding a new row for Cycle Length and Cycle Top plots
+            col7, col8 = st.columns(2)  # Fourth row with two columns
+
+            with col7:
+                # Fifth diagram: Cycle Length
+                st.subheader("Cycle Length")
+
+                # Place checkboxes below the title
+                neglect_first = st.checkbox('Neglect First Cycle', key="neglect_first_7", value=True)
+                neglect_last = st.checkbox('Neglect Last Cycle', key="neglect_last_7", value=True)
+
+                # Filter data based on checkbox state
+                start_idx = 1 if neglect_first else 0
+                end_idx = -1 if neglect_last else None
+                col7_filtered_cycles_stats_df = cycles_stats_df.iloc[start_idx:end_idx]
+
+                fig7 = go.Figure(data=go.Scatter(
+                    x=cycles_stats_df.index,
+                    y=cycles_stats_df['Cycle Length'],
+                    mode='markers+lines',
+                    name='Cycle Length',
+                    marker=dict(color='blue')
+                ))
+
+                # Filtered plot overlayed in red
+                fig7.add_trace(go.Scatter(
+                    x=col7_filtered_cycles_stats_df.index,
+                    y=col7_filtered_cycles_stats_df['Cycle Length'],
+                    mode='markers+lines',
+                    name='Filtered Cycle Length',
+                    marker=dict(color='red')
+                ))
+
+                # Perform linear regression on filtered data
+                slope, intercept, r_value, p_value, std_err = linregress(col7_filtered_cycles_stats_df.index, col7_filtered_cycles_stats_df['Cycle Length'])
+
+                # Determine the x-range for the linear fit (from min to extrapolated point)
+                x_min = col7_filtered_cycles_stats_df.index.min()
+                x_max = max(col7_filtered_cycles_stats_df.index) + 1
+                extended_x = np.linspace(x_min, x_max, num=100)  # Create 100 points between min and extrapolated point
+
+                # Compute the linear fit line values
+                extended_y = intercept + slope * extended_x
+
+                # Plot the linear fit extending to the extrapolated point
+                fig7.add_trace(go.Scatter(
+                    x=extended_x,
+                    y=extended_y,
+                    mode='lines',
+                    name='Extended Linear Fit',
+                    line=dict(color='red', dash='dash')
+                ))
+
+                # Extrapolate for the next cycle
+                col7_next_cycle = max(col7_filtered_cycles_stats_df.index) + 1
+                col7_extrapolated_value = intercept + slope * col7_next_cycle
+                fig5.add_trace(go.Scatter(
+                    x=[col7_next_cycle],
+                    y=[col7_extrapolated_value],
+                    mode='markers',
+                    name='Extrapolated Point',
+                    marker=dict(color='red', size=10, symbol='cross')
+                ))
+
+                fig7.update_layout(
+                    xaxis_title="BTC Cycle",
+                    yaxis_title="Cycle Length (Days)",
+                    xaxis=dict(type='linear', dtick=1, tickformat=".0f")
+                )
+                st.plotly_chart(fig5, use_container_width=True)
 
 # Current Cycle (Extrapolated Data)
         # Convert the 'Date' column to datetime
@@ -672,24 +742,28 @@ def main():
         current_cycle_start_date = most_recent_halving['Date']
 
         # Calculate the extrapolated cycle top date
-        days_until_top = col5_extrapolated_value * col2_extrapolated_value
+        days_until_top = col7_extrapolated_value * col2_extrapolated_value
         extrapolated_top_date = current_cycle_start_date + timedelta(days=days_until_top)
 
         # Calculate the extrapolated cycle bottom date
-        days_until_bottom = col5_extrapolated_value * col4_extrapolated_value
+        days_until_bottom = col7_extrapolated_value * col4_extrapolated_value
         extrapolated_bottom_date = current_cycle_start_date + timedelta(days=days_until_bottom)
 
         st.subheader("Current Cycle (Extrapolated Data)")
 
         # Create the Markdown table
         markdown_table = f"""
-        Description             | Value                                                                                |
-        |-----------------------|--------------------------------------------------------------------------------------|
-        | Cycle Length          | {int(col5_extrapolated_value)} days                                                  |
-        | Cycle Top             | {extrapolated_top_date.strftime('%d.%m.%Y')} with {int(col6_extrapolated_value)} USD |
-        | Cycle Bottom Date     | {extrapolated_bottom_date.strftime('%d.%m.%Y')}                                      |
-        | Days CBBI >= 85       | {int(col1_extrapolated_value)} days                                                  |
-        | Days CBBI <= 15       | {int(col3_extrapolated_value)} days                                                  |
+        Description                    | Value                                                                                   |
+        |------------------------------|-----------------------------------------------------------------------------------------|
+        | Cycle Length                 | {int(col7_extrapolated_value)} days                                                     |
+        | Cycle Top                    | {extrapolated_top_date.strftime('%d.%m.%Y')} with {int(col5_extrapolated_value)} USD    |
+        | Cycle Bottom                 | {extrapolated_bottom_date.strftime('%d.%m.%Y')} with {int(col6_extrapolated_value)} USD |
+        | Days CBBI >= 85              | {int(col1_extrapolated_value)} days                                                     |
+        | Days CBBI <= 15              | {int(col3_extrapolated_value)} days                                                     |
+        |                              |                                                                                         |
+        | Last BTC Price               | {int(df['Price'].iloc[-1])} USD                                                         |
+        | Top Gain (from last price)   | {col5_extrapolated_value / df['Price'].iloc[-1]:.1f}                                    |
+        | Top-to-bottom multiplier     | {col5_extrapolated_value/col6_extrapolated_value:.1f}                                   |
         """
         # Display the table in Streamlit
         st.markdown(markdown_table)
@@ -736,13 +810,23 @@ def main():
               layer="below",  # Ensure the shading is below data points
               line_width=0,  # No border line
         )
-        # Add the new point to the existing plot
+        # Add the extrapolated cycle top to the existing plot
         fig.add_trace(go.Scatter(
             x=[extrapolated_top_date],  # Use a list to ensure compatibility with Plotly
-            y=[col6_extrapolated_value],
+            y=[col5_extrapolated_value],
             mode='markers+text',
             marker=dict(color='lightgreen', size=10, symbol='cross'),
             text=['Extrapolated Cycle Top'],
+            textposition='top right',
+            name='Analysis Results'
+        ))
+        # Add the cycle bottom to the existing plot
+        fig.add_trace(go.Scatter(
+            x=[extrapolated_bottom_date],  # Use a list to ensure compatibility with Plotly
+            y=[col6_extrapolated_value],
+            mode='markers+text',
+            marker=dict(color='blue', size=10, symbol='cross'),
+            text=['Extrapolated Cycle Bottom'],
             textposition='top right',
             name='Analysis Results'
         ))
@@ -794,11 +878,11 @@ def main():
         # Apply rescaling
         # Normalize the time
         days_since_start = numeric_time - time_min  # Days since the last halving
-        rescaled_time = days_since_start / col5_extrapolated_value  # Now x ranges from 0 to current progress in the cycle
+        rescaled_time = days_since_start / col7_extrapolated_value  # Now x ranges from 0 to current progress in the cycle
         # Step 1: Calculate the minimum price of the current cycle
         min_current_price = current_cycle_price.min()
         # Step 2: Rescale the price data
-        rescaled_price = (current_cycle_price - min_current_price) / (col6_extrapolated_value - min_current_price)
+        rescaled_price = (current_cycle_price - min_current_price) / (col5_extrapolated_value - min_current_price)
         rescaled_cbbi = current_cycle_cbbi / 100  # Normalize to the range [0, 1]
 
         # Initialize figures for normalized price and CBBI
@@ -842,7 +926,7 @@ def main():
             name="Mean CBBI",
             line=dict(color='black', width=4)  # Solid thick line for the mean
         ))
-        
+
         # Plot the current cycle on the same graphs
         fig_price.add_trace(go.Scatter(
             x=rescaled_time,  # Use the rescaled time
@@ -877,6 +961,15 @@ def main():
             mode='markers',
             name='Extrapolated Cycle Top',
             marker=dict(symbol='cross', color='lightgreen', size=12),  # Light green cross
+        ))
+
+        # Add point plot for the extrapolated cycle bottom to cbbi plot
+        fig_cbbi.add_trace(go.Scatter(
+            x=[col4_extrapolated_value],  # x-value (normalized time) for the extrapolated cycle top
+            y=[0],  # y-value is 0
+            mode='markers',
+            name='Extrapolated Cycle Bottom',
+            marker=dict(symbol='cross', color='blue', size=12),
         ))
 
         # Update layout for normalized price plot
