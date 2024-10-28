@@ -718,7 +718,7 @@ def main():
                 # Extrapolate for the next cycle
                 col7_next_cycle = max(col7_filtered_cycles_stats_df.index) + 1
                 col7_extrapolated_value = intercept + slope * col7_next_cycle
-                fig5.add_trace(go.Scatter(
+                fig7.add_trace(go.Scatter(
                     x=[col7_next_cycle],
                     y=[col7_extrapolated_value],
                     mode='markers',
