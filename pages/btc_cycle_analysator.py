@@ -731,7 +731,7 @@ def main():
                     yaxis_title="Cycle Length (Days)",
                     xaxis=dict(type='linear', dtick=1, tickformat=".0f")
                 )
-                st.plotly_chart(fig5, use_container_width=True)
+                st.plotly_chart(fig7, use_container_width=True)
 
 # Current Cycle (Extrapolated Data)
         # Convert the 'Date' column to datetime
