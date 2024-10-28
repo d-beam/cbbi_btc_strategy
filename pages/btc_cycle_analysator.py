@@ -664,7 +664,7 @@ def main():
 
             # Adding a new row for Cycle Length and Cycle Top plots
             col7, col8 = st.columns(2)  # Fourth row with two columns
-
+            
             with col7:
                 # Fifth diagram: Cycle Length
                 st.subheader("Cycle Length")
@@ -732,6 +732,71 @@ def main():
                     xaxis=dict(type='linear', dtick=1, tickformat=".0f")
                 )
                 st.plotly_chart(fig7, use_container_width=True)
+            with col8:
+                st.subheader("First CBBI >= 85 Date Extrapolation")
+            
+                # Place checkboxes below the title
+                neglect_first = st.checkbox('Neglect First Cycle', key="neglect_first_8", value=True)
+                neglect_last = st.checkbox('Neglect Last Cycle', key="neglect_last_8", value=True)
+            
+                # Filter data based on checkbox state
+                start_idx = 1 if neglect_first else 0
+                end_idx = -1 if neglect_last else None
+                col8_filtered_cycles_stats_df = cycles_stats_df.iloc[start_idx:end_idx]
+            
+                fig8 = go.Figure(data=go.Scatter(
+                    x=cycles_stats_df.index,
+                    y=cycles_stats_df['Days CBBI >= 85'],
+                    mode='markers+lines',
+                    name='First CBBI >= 85 Date'
+                ))
+            
+                # Filtered plot overlayed in red
+                fig8.add_trace(go.Scatter(
+                    x=col8_filtered_cycles_stats_df.index,
+                    y=col8_filtered_cycles_stats_df['Days CBBI >= 85'],
+                    mode='markers+lines',
+                    name='Filtered First CBBI >= 85 Date',
+                    line=dict(color='red')
+                ))
+            
+                # Perform linear regression on filtered data
+                slope, intercept, r_value, p_value, std_err = linregress(col8_filtered_cycles_stats_df.index, col8_filtered_cycles_stats_df['Days CBBI >= 85'])
+            
+                # Determine the x-range for the linear fit (from min to extrapolated point)
+                x_min = col8_filtered_cycles_stats_df.index.min()
+                x_max = max(col8_filtered_cycles_stats_df.index) + 1
+                extended_x = np.linspace(x_min, x_max, num=100)
+            
+                # Compute the linear fit line values
+                extended_y = intercept + slope * extended_x
+            
+                # Plot the linear fit extending to the extrapolated point
+                fig8.add_trace(go.Scatter(
+                    x=extended_x,
+                    y=extended_y,
+                    mode='lines',
+                    name='Extended Linear Fit',
+                    line=dict(color='red', dash='dash')
+                ))
+            
+                # Extrapolate for the next cycle
+                col8_next_cycle = max(col8_filtered_cycles_stats_df.index) + 1
+                col8_extrapolated_value = intercept + slope * col8_next_cycle
+                fig8.add_trace(go.Scatter(
+                    x=[col8_next_cycle],
+                    y=[col8_extrapolated_value],
+                    mode='markers',
+                    name='Extrapolated Point',
+                    marker=dict(color='red', size=10, symbol='cross')
+                ))
+            
+                fig8.update_layout(
+                    xaxis_title="BTC Cycle",
+                    yaxis_title="Days CBBI >= 85",
+                    xaxis=dict(type='linear', dtick=1, tick0=0, tickformat=".0f")
+                )
+                st.plotly_chart(fig8, use_container_width=True)
 
 # Current Cycle (Extrapolated Data)
         # Convert the 'Date' column to datetime
@@ -749,23 +814,25 @@ def main():
         days_until_bottom = col7_extrapolated_value * col4_extrapolated_value
         extrapolated_bottom_date = current_cycle_start_date + timedelta(days=days_until_bottom)
 
+        # Berechnung des extrapolierten Datums für "First CBBI >= 85 Date" im aktuellen Zyklus
+        extrapolated_first_cbbi_85_date = current_cycle_start_date + timedelta(days=col8_extrapolated_value)
+
         st.subheader("Current Cycle (Extrapolated Data)")
 
         # Create the Markdown table
         markdown_table = f"""
-        Description                    | Value                                                                                   |
-        |------------------------------|-----------------------------------------------------------------------------------------|
-        | Cycle Length                 | {int(col7_extrapolated_value)} days                                                     |
-        | Cycle Top                    | {extrapolated_top_date.strftime('%d.%m.%Y')} with {int(col5_extrapolated_value)} USD    |
-        | Cycle Bottom                 | {extrapolated_bottom_date.strftime('%d.%m.%Y')} with {int(col6_extrapolated_value)} USD |
-        | Days CBBI >= 85              | {int(col1_extrapolated_value)} days                                                     |
-        | Days CBBI <= 15              | {int(col3_extrapolated_value)} days                                                     |
-        |                              |                                                                                         |
-        | Last BTC Price               | {int(df['Price'].iloc[-1])} USD                                                         |
-        | Top Gain (from last price)   | {col5_extrapolated_value / df['Price'].iloc[-1]:.1f}                                    |
-        | Top-to-bottom multiplier     | {col5_extrapolated_value/col6_extrapolated_value:.1f}                                   |
+        | Beschreibung                   | Wert                                                                                     |
+        |--------------------------------|------------------------------------------------------------------------------------------|
+        | Cycle Length                   | {int(col7_extrapolated_value)} days                                                      |
+        | Cycle Top                      | {extrapolated_top_date.strftime('%d.%m.%Y')} with {int(col5_extrapolated_value)} USD     |
+        | Cycle Bottom                   | {extrapolated_bottom_date.strftime('%d.%m.%Y')} with {int(col6_extrapolated_value)} USD  |
+        | Days CBBI >= 85                | {int(col1_extrapolated_value)} days                                                      |
+        | Days CBBI <= 15                | {int(col3_extrapolated_value)} days                                                      |
+        | First CBBI >= 85 Date          | {extrapolated_first_cbbi_85_date.strftime('%d.%m.%Y')}                                   |
+        | Last BTC Price                 | {int(df['Price'].iloc[-1])} USD                                                          |
+        | Top Gain (from last price)     | {col5_extrapolated_value / df['Price'].iloc[-1]:.1f}                                     |
+        | Top-to-bottom multiplier       | {col5_extrapolated_value / col6_extrapolated_value:.1f}                                  |
         """
-        # Display the table in Streamlit
         st.markdown(markdown_table)
 
 
