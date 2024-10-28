@@ -165,83 +165,89 @@ def main():
             normalized_last_chunk['Cycle Number'] = cycle_number
             normalized_chunks.append(normalized_last_chunk)
 
-# Cycle Stats
-        cycles_stats = []
-
-        for chunk, is_complete in chunks:
-            if chunk.empty:
-                continue  # Skip empty chunks
-
-            chunk['Date'] = pd.to_datetime(chunk['Date'])  # Ensure Date is in datetime format
-            cycle_stats = {
-                "Cycle Number": chunk['Cycle Number'].iloc[0],
-                "Cycle Start Date": chunk.iloc[0]['Date'].date(),
-                "Cycle Length": (chunk['Date'].iloc[-1] - chunk['Date'].iloc[0]).days,  # Cycle length in days
-                "First CBBI >= 85 Date": None,
-                "Days CBBI >= 85": 0,
-                "Cycle Top": None,
-                "Date of Cycle Top": None,
-                "Days to Cycle Top": None,
-                "Relative Top Position": None,  # Relative measure of when the top was reached
-                "First CBBI <= 15 Date": None,
-                "Days CBBI <= 15": 0,
-                "Cycle Bottom": None,
-                "Date of Cycle Bottom": None,
-                "Days to Cycle Bottom": None,
-                "Relative Bottom Position": None,  # Relative measure of when the bottom was reached
-            }
-
-            # Finding first valid CBBI >= 85 crossing
-            first_above_85_index = check_persistence(chunk['CBBI'], 85, above=True)
-            if first_above_85_index is not None:
-                first_above_85_date = chunk.loc[first_above_85_index, 'Date']
-                cycle_stats["First CBBI >= 85 Date"] = first_above_85_date.date()
-                cycle_stats["Days CBBI >= 85"] = chunk[chunk['Date'] >= first_above_85_date]['CBBI'].ge(85).sum()
-
-            # Finding first valid CBBI <= 15 crossing
-            first_below_15_index = check_persistence(chunk['CBBI'], 15, above=False)
-            if first_below_15_index is not None:
-                first_below_15_date = chunk.loc[first_below_15_index, 'Date']
-                cycle_stats["First CBBI <= 15 Date"] = first_below_15_date.date()
-                cycle_stats["Days CBBI <= 15"] = chunk[chunk['Date'] <= first_below_15_date]['CBBI'].le(15).sum()
-
-            # Directly find the Cycle Top considering all data up to the first CBBI <= 15 crossing
-            if first_below_15_index:
-                # Consider all data up to first_below_15_date for Cycle Top
-                top_search_chunk = chunk[chunk['Date'] < first_below_15_date]
-                if not top_search_chunk.empty:
-                    top_price_row = top_search_chunk.loc[top_search_chunk['Price'].idxmax()]
-                    cycle_stats["Cycle Top"] = top_price_row['Price']
-                    cycle_stats["Date of Cycle Top"] = top_price_row['Date'].date()
-                    cycle_stats["Days to Cycle Top"] = (top_price_row['Date'] - chunk.iloc[0]['Date']).days
-
-            # Update for finding the first valid CBBI <= 15 crossing for Cycle Bottom determination
-            if first_below_15_index:
-                first_below_15_date = chunk.loc[first_below_15_index, 'Date']
-                cycle_stats["First CBBI <= 15 Date"] = first_below_15_date.date()
-                cycle_stats["Days CBBI <= 15"] = chunk[chunk['Date'] >= first_below_15_date]['CBBI'].le(15).sum()
-
-                # Consider data after the first_below_15_date for Cycle Bottom
-                bottom_search_chunk = chunk[chunk['Date'] > first_below_15_date]
-                if not bottom_search_chunk.empty:
-                    bottom_price_row = bottom_search_chunk.loc[bottom_search_chunk['Price'].idxmin()]
-                    cycle_stats["Cycle Bottom"] = bottom_price_row['Price']
-                    cycle_stats["Date of Cycle Bottom"] = bottom_price_row['Date'].date()
-                    cycle_stats["Days to Cycle Bottom"] = (bottom_price_row['Date'] - chunk.iloc[0]['Date']).days
-
-            # Calculate the relative Cycle Top/Bottom Position
-            if cycle_stats["Days to Cycle Top"] is not None:
-                cycle_stats["Relative Top Position"] = cycle_stats["Days to Cycle Top"] / cycle_stats["Cycle Length"]
-            if cycle_stats["Days to Cycle Bottom"] is not None:
-                cycle_stats["Relative Bottom Position"] = cycle_stats["Days to Cycle Bottom"] / cycle_stats["Cycle Length"]
-
-            cycles_stats.append(cycle_stats)
-
-        cycles_stats_df = pd.DataFrame(cycles_stats)
-
-        # Display the cycle Analysis table in Streamlit
-        st.subheader("Cycle Analysis")
-        st.write(cycles_stats_df)
+# Cycle Analysis
+            cycles_stats = []
+            
+            for chunk, is_complete in chunks:
+                if chunk.empty:
+                    continue  # Skip empty chunks
+            
+                chunk['Date'] = pd.to_datetime(chunk['Date'])  # Ensure Date is in datetime format
+                cycle_stats = {
+                    "Cycle Number": chunk['Cycle Number'].iloc[0],
+                    "Cycle Start Date": chunk.iloc[0]['Date'].date(),
+                    "Cycle Length": (chunk['Date'].iloc[-1] - chunk['Date'].iloc[0]).days,  # Cycle length in days
+                    "First CBBI >= 85 Date": None,
+                    "Days CBBI >= 85": 0,
+                    "Relative First CBBI >= 85 Position": None,  # New field for relative position of CBBI >= 85
+                    "Cycle Top": None,
+                    "Date of Cycle Top": None,
+                    "Days to Cycle Top": None,
+                    "Relative Top Position": None,  # Relative measure of when the top was reached
+                    "First CBBI <= 15 Date": None,
+                    "Days CBBI <= 15": 0,
+                    "Cycle Bottom": None,
+                    "Date of Cycle Bottom": None,
+                    "Days to Cycle Bottom": None,
+                    "Relative Bottom Position": None,  # Relative measure of when the bottom was reached
+                }
+            
+                # Finding first valid CBBI >= 85 crossing
+                first_above_85_index = check_persistence(chunk['CBBI'], 85, above=True)
+                if first_above_85_index is not None:
+                    first_above_85_date = chunk.loc[first_above_85_index, 'Date']
+                    cycle_stats["First CBBI >= 85 Date"] = first_above_85_date.date()
+                    cycle_stats["Days CBBI >= 85"] = chunk[chunk['Date'] >= first_above_85_date]['CBBI'].ge(85).sum()
+            
+                    # Calculate the relative position of First CBBI >= 85 in the cycle
+                    cycle_length = cycle_stats["Cycle Length"]
+                    relative_position = (first_above_85_date - chunk.iloc[0]['Date']).days / cycle_length
+                    cycle_stats["Relative First CBBI >= 85 Position"] = relative_position
+            
+                # Finding first valid CBBI <= 15 crossing
+                first_below_15_index = check_persistence(chunk['CBBI'], 15, above=False)
+                if first_below_15_index is not None:
+                    first_below_15_date = chunk.loc[first_below_15_index, 'Date']
+                    cycle_stats["First CBBI <= 15 Date"] = first_below_15_date.date()
+                    cycle_stats["Days CBBI <= 15"] = chunk[chunk['Date'] <= first_below_15_date]['CBBI'].le(15).sum()
+            
+                # Directly find the Cycle Top considering all data up to the first CBBI <= 15 crossing
+                if first_below_15_index:
+                    # Consider all data up to first_below_15_date for Cycle Top
+                    top_search_chunk = chunk[chunk['Date'] < first_below_15_date]
+                    if not top_search_chunk.empty:
+                        top_price_row = top_search_chunk.loc[top_search_chunk['Price'].idxmax()]
+                        cycle_stats["Cycle Top"] = top_price_row['Price']
+                        cycle_stats["Date of Cycle Top"] = top_price_row['Date'].date()
+                        cycle_stats["Days to Cycle Top"] = (top_price_row['Date'] - chunk.iloc[0]['Date']).days
+            
+                # Update for finding the first valid CBBI <= 15 crossing for Cycle Bottom determination
+                if first_below_15_index:
+                    first_below_15_date = chunk.loc[first_below_15_index, 'Date']
+                    cycle_stats["First CBBI <= 15 Date"] = first_below_15_date.date()
+                    cycle_stats["Days CBBI <= 15"] = chunk[chunk['Date'] >= first_below_15_date]['CBBI'].le(15).sum()
+            
+                    # Consider data after the first_below_15_date for Cycle Bottom
+                    bottom_search_chunk = chunk[chunk['Date'] > first_below_15_date]
+                    if not bottom_search_chunk.empty:
+                        bottom_price_row = bottom_search_chunk.loc[bottom_search_chunk['Price'].idxmin()]
+                        cycle_stats["Cycle Bottom"] = bottom_price_row['Price']
+                        cycle_stats["Date of Cycle Bottom"] = bottom_price_row['Date'].date()
+                        cycle_stats["Days to Cycle Bottom"] = (bottom_price_row['Date'] - chunk.iloc[0]['Date']).days
+            
+                # Calculate the relative Cycle Top/Bottom Position
+                if cycle_stats["Days to Cycle Top"] is not None:
+                    cycle_stats["Relative Top Position"] = cycle_stats["Days to Cycle Top"] / cycle_stats["Cycle Length"]
+                if cycle_stats["Days to Cycle Bottom"] is not None:
+                    cycle_stats["Relative Bottom Position"] = cycle_stats["Days to Cycle Bottom"] / cycle_stats["Cycle Length"]
+            
+                cycles_stats.append(cycle_stats)
+            
+            cycles_stats_df = pd.DataFrame(cycles_stats)
+            
+            # Display the cycle Analysis table in Streamlit
+            st.subheader("Cycle Analysis")
+            st.write(cycles_stats_df)
 
 
 # Extended Analysis
@@ -733,7 +739,8 @@ def main():
                 )
                 st.plotly_chart(fig7, use_container_width=True)
             with col8:
-                st.subheader("First CBBI >= 85 Date Extrapolation")
+                # Eighth diagram: Relative First CBBI >= 85 Position
+                st.subheader("Relative First CBBI >= 85 Position (Extrapolated)")
             
                 # Place checkboxes below the title
                 neglect_first = st.checkbox('Neglect First Cycle', key="neglect_first_8", value=True)
@@ -746,22 +753,22 @@ def main():
             
                 fig8 = go.Figure(data=go.Scatter(
                     x=cycles_stats_df.index,
-                    y=cycles_stats_df['Days CBBI >= 85'],
+                    y=cycles_stats_df['Relative First CBBI >= 85 Position'],
                     mode='markers+lines',
-                    name='First CBBI >= 85 Date'
+                    name='Relative First CBBI >= 85 Position'
                 ))
             
                 # Filtered plot overlayed in red
                 fig8.add_trace(go.Scatter(
                     x=col8_filtered_cycles_stats_df.index,
-                    y=col8_filtered_cycles_stats_df['Days CBBI >= 85'],
+                    y=col8_filtered_cycles_stats_df['Relative First CBBI >= 85 Position'],
                     mode='markers+lines',
-                    name='Filtered First CBBI >= 85 Date',
+                    name='Filtered Relative First CBBI >= 85 Position',
                     line=dict(color='red')
                 ))
             
                 # Perform linear regression on filtered data
-                slope, intercept, r_value, p_value, std_err = linregress(col8_filtered_cycles_stats_df.index, col8_filtered_cycles_stats_df['Days CBBI >= 85'])
+                slope, intercept, r_value, p_value, std_err = linregress(col8_filtered_cycles_stats_df.index, col8_filtered_cycles_stats_df['Relative First CBBI >= 85 Position'])
             
                 # Determine the x-range for the linear fit (from min to extrapolated point)
                 x_min = col8_filtered_cycles_stats_df.index.min()
@@ -793,10 +800,11 @@ def main():
             
                 fig8.update_layout(
                     xaxis_title="BTC Cycle",
-                    yaxis_title="Days CBBI >= 85",
-                    xaxis=dict(type='linear', dtick=1, tick0=0, tickformat=".0f")
+                    yaxis_title="Relative First CBBI >= 85 Position",
+                    xaxis=dict(type='linear', dtick=1, tickformat=".0f")
                 )
                 st.plotly_chart(fig8, use_container_width=True)
+
 
 # Current Cycle (Extrapolated Data)
         # Convert the 'Date' column to datetime
@@ -814,25 +822,29 @@ def main():
         days_until_bottom = col7_extrapolated_value * col4_extrapolated_value
         extrapolated_bottom_date = current_cycle_start_date + timedelta(days=days_until_bottom)
 
-        # Berechnung des extrapolierten Datums für "First CBBI >= 85 Date" im aktuellen Zyklus
-        extrapolated_first_cbbi_85_date = current_cycle_start_date + timedelta(days=col8_extrapolated_value)
-
+        # Calculate the extrapolated date for the first CBBI >= 85 in the current cycle
+        days_until_cbbi_85 = col7_extrapolated_value * col8_extrapolated_value  # Calculate days until CBBI >= 85
+        extrapolated_cbbi_85_date = current_cycle_start_date + timedelta(days=days_until_cbbi_85)
+        
         st.subheader("Current Cycle (Extrapolated Data)")
-
+        
         # Create the Markdown table
         markdown_table = f"""
-        | Beschreibung                   | Wert                                                                                     |
-        |--------------------------------|------------------------------------------------------------------------------------------|
-        | Cycle Length                   | {int(col7_extrapolated_value)} days                                                      |
-        | Cycle Top                      | {extrapolated_top_date.strftime('%d.%m.%Y')} with {int(col5_extrapolated_value)} USD     |
-        | Cycle Bottom                   | {extrapolated_bottom_date.strftime('%d.%m.%Y')} with {int(col6_extrapolated_value)} USD  |
-        | Days CBBI >= 85                | {int(col1_extrapolated_value)} days                                                      |
-        | Days CBBI <= 15                | {int(col3_extrapolated_value)} days                                                      |
-        | First CBBI >= 85 Date          | {extrapolated_first_cbbi_85_date.strftime('%d.%m.%Y')}                                   |
-        | Last BTC Price                 | {int(df['Price'].iloc[-1])} USD                                                          |
-        | Top Gain (from last price)     | {col5_extrapolated_value / df['Price'].iloc[-1]:.1f}                                     |
-        | Top-to-bottom multiplier       | {col5_extrapolated_value / col6_extrapolated_value:.1f}                                  |
+        | Description                    | Value                                                                                   |
+        |--------------------------------|-----------------------------------------------------------------------------------------|
+        | Cycle Length                   | {int(col7_extrapolated_value)} days                                                     |
+        | Cycle Top                      | {extrapolated_top_date.strftime('%d.%m.%Y')} with {int(col5_extrapolated_value)} USD    |
+        | Cycle Bottom                   | {extrapolated_bottom_date.strftime('%d.%m.%Y')} with {int(col6_extrapolated_value)} USD |
+        | Days CBBI >= 85                | {int(col1_extrapolated_value)} days                                                     |
+        | Days CBBI <= 15                | {int(col3_extrapolated_value)} days                                                     |
+        | Extrapolated First CBBI >= 85 Date | {extrapolated_cbbi_85_date.strftime('%d.%m.%Y')}                                    |
+        |                                |                                                                                         |
+        | Last BTC Price                 | {int(df['Price'].iloc[-1])} USD                                                         |
+        | Top Gain (from last price)     | {col5_extrapolated_value / df['Price'].iloc[-1]:.1f}                                    |
+        | Top-to-bottom multiplier       | {col5_extrapolated_value/col6_extrapolated_value:.1f}                                   |
         """
+        
+        # Display the table in Streamlit
         st.markdown(markdown_table)
 
 
