@@ -93,7 +93,7 @@ def calculate_mean_curve(interpolated_chunks):
 def main():
     st.title("BTC Cycle & CBBI Analysis")
     st.markdown("""
-    This app uses the [CBBI index](https://colintalkscrypto.com/cbbi/) as a basis for a long-term BTC investment strategy. Acknowledging that the BTC price moves in cycles, corresponding to the halving events, two thresholds (≥85 & ≤15) are defined to indicate whether it is time to sell or to buy. In-between, we DCA (dollar-cost-average) invest in the bull market and wait in the bear market.
+    This app uses the [CBBI index](https://colintalkscrypto.com/cbbi/) as a basis for a long-term BTC investment strategy. Acknowledging that the BTC price moves in cycles, corresponding to the halving events, two thresholds (≥85 & ≤15) are defined to indicate whether it is time to sell or to buy. In-between, one may DCA (dollar-cost-average) invest in the bull market and wait in the bear market.
     """)
     url = "https://colintalkscrypto.com/cbbi/data/latest.json"
     df = fetch_and_process_data(url)
@@ -157,7 +157,6 @@ def main():
 
 # Cycle Analysis
             cycles_stats = []
-            
             for chunk, is_complete in chunks:
                 if chunk.empty:
                     continue  # Skip empty chunks
@@ -237,6 +236,9 @@ def main():
             
             # Display the cycle Analysis table in Streamlit
             st.header("BTC Cycle Analysis")
+            st.markdown("""
+            First, we fetch the BTC price and CBBI data, cut it into cycle chunks at the halving events & perform a bit of analysis.
+            """)
             st.write(cycles_stats_df)
 
 
