@@ -1,10 +1,4 @@
 import streamlit as st
-
-# set page title
-st.set_page_config(page_title="CBBI BTC App", page_icon="🚀", layout="wide")
-# Set the page to wide mode
-st.set_page_config(layout="wide")
-
 import requests
 import pandas as pd
 import plotly.express as px
@@ -13,6 +7,8 @@ import numpy as np
 from datetime import datetime, timedelta
 from scipy.interpolate import interp1d
 from scipy.stats import linregress
+
+st.set_page_config(page_title="CBBI BTC App", page_icon="🚀", layout="wide")
 
 # Load the Bitcoin halving data from a CSV file one level above the working directory
 DATA_FILE = 'bitcoin_halving_data.csv'
