@@ -1,9 +1,10 @@
+import streamlit as st
+
 # set page title
 st.set_page_config(page_title="CBBI BTC App", page_icon="🚀", layout="wide")
 # Set the page to wide mode
 st.set_page_config(layout="wide")
 
-import streamlit as st
 import requests
 import pandas as pd
 import plotly.express as px
