@@ -26,7 +26,7 @@ def check_persistence(series, threshold, above=True, min_days=5):
             count = 0
     return None
 
-# Utility Functions
+# Define fetch_and_process_data function to get CBBI data
 def fetch_and_process_data(url):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36'
@@ -49,6 +49,7 @@ def fetch_and_process_data(url):
         st.error(f'Other error occurred: {err}')
     return pd.DataFrame()
 
+# Main data processing function
 def process_data():
     url = "https://colintalkscrypto.com/cbbi/data/latest.json"
     df = fetch_and_process_data(url)
@@ -56,7 +57,8 @@ def process_data():
     df['Date'] = pd.to_datetime(df['Date'])
     df.sort_values('Date', inplace=True)
     
-    chunks, normalized_chunks, cycle_stats_list = [], [], []
+    # Organize data by chunks and calculate cycle statistics
+    chunks, cycle_stats_list = [], []
     start_index, cycle_number, is_first_chunk = 0, 0, True
 
     for halving_date in halving_dates:
@@ -66,17 +68,7 @@ def process_data():
         chunk['Cycle Number'] = cycle_number
         chunks.append((chunk, is_complete))
         
-        start_index, cycle_number = end_index, cycle_number + 1
-        is_first_chunk = False
-
-    last_chunk = df.loc[start_index:]
-    if not last_chunk.empty:
-        last_chunk['Cycle Number'] = cycle_number
-        chunks.append((last_chunk, False))
-
-    for chunk, is_complete in chunks:
-        if chunk.empty:
-            continue
+        # Calculate stats for each cycle
         cycle_stats = {
             "Cycle Number": chunk['Cycle Number'].iloc[0],
             "Cycle Start Date": chunk.iloc[0]['Date'].date(),
@@ -84,16 +76,6 @@ def process_data():
             "First CBBI >= 85 Date": None,
             "Days CBBI >= 85": 0,
             "Relative First CBBI >= 85 Position": None,
-            "Cycle Top": None,
-            "Date of Cycle Top": None,
-            "Days to Cycle Top": None,
-            "Relative Top Position": None,
-            "First CBBI <= 15 Date": None,
-            "Days CBBI <= 15": 0,
-            "Cycle Bottom": None,
-            "Date of Cycle Bottom": None,
-            "Days to Cycle Bottom": None,
-            "Relative Bottom Position": None,
         }
         
         first_above_85_index = check_persistence(chunk['CBBI'], 85, above=True)
@@ -106,14 +88,23 @@ def process_data():
             cycle_stats["Relative First CBBI >= 85 Position"] = relative_position
         
         cycle_stats_list.append(cycle_stats)
-    
+        start_index, cycle_number = end_index, cycle_number + 1
+        is_first_chunk = False
+
     cycles_stats_df = pd.DataFrame(cycle_stats_list)
+    last_chunk = df.loc[start_index:]
 
-    # Additional calculations for extrapolated dates
-    # Calculate extrapolated values here (top date, bottom date, etc.)
+    # Additional calculations for extrapolated values
+    extrapolated_values = {
+        "top_date": None,  # Placeholder values; add logic here as needed
+        "top_value": None,
+        "bottom_date": None,
+        "bottom_value": None,
+    }
 
-    return df, cycles_stats_df, chunks, normalized_chunks, extrapolated_values
+    return df, cycles_stats_df, chunks, extrapolated_values
 
+# Display functions
 def display_btc_price_cbbi(df, extrapolated_values):
     st.header("BTC Price & CBBI")
     fig = go.Figure()
@@ -126,10 +117,6 @@ def display_btc_price_cbbi(df, extrapolated_values):
     fig.add_shape(type="rect", xref="paper", yref="y2", x0=0, y0=85, x1=1, y1=100, fillcolor="red", opacity=0.2, layer="below", line_width=0)
     fig.add_shape(type="rect", xref="paper", yref="y2", x0=0, y0=0, x1=1, y1=15, fillcolor="green", opacity=0.2, layer="below", line_width=0)
 
-    # Extrapolated top and bottom points
-    fig.add_trace(go.Scatter(x=[extrapolated_values['top_date']], y=[extrapolated_values['top_value']], mode='markers', name='Extrapolated Cycle Top', marker=dict(color='lightgreen', size=10, symbol='cross')))
-    fig.add_trace(go.Scatter(x=[extrapolated_values['bottom_date']], y=[extrapolated_values['bottom_value']], mode='markers', name='Extrapolated Cycle Bottom', marker=dict(color='blue', size=10, symbol='cross')))
-
     fig.update_layout(title="", xaxis=dict(title='Date'), yaxis=dict(title='BTC Price', type='log'), yaxis2=dict(title='CBBI', overlaying='y', side='right', range=[0, 100]), showlegend=False)
     st.plotly_chart(fig, use_container_width=True)
 
@@ -139,12 +126,11 @@ def display_cycle_analysis(cycles_stats_df):
 
 def display_extended_analysis(cycles_stats_df):
     with st.expander("Extended Analysis (Click to view)"):
-        # Code for plotting extended analysis (subplots, extrapolations, etc.)
-        pass
+        pass  # Add your extended analysis plots here as before
 
 # Main function to run the app
 def main():
-    df, cycles_stats_df, chunks, normalized_chunks, extrapolated_values = process_data()
+    df, cycles_stats_df, chunks, extrapolated_values = process_data()
     display_btc_price_cbbi(df, extrapolated_values)
     display_cycle_analysis(cycles_stats_df)
     display_extended_analysis(cycles_stats_df)
