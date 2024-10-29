@@ -11,6 +11,9 @@ from scipy.stats import linregress
 # Set the page to wide mode
 st.set_page_config(layout="wide")
 
+# set page title
+st.set_page_config(page_title="CBBI BTC App", page_icon="🚀", layout="wide")
+
 # Load the Bitcoin halving data from a CSV file one level above the working directory
 DATA_FILE = 'bitcoin_halving_data.csv'
 bitcoin_halving_data = pd.read_csv(DATA_FILE)
@@ -246,7 +249,7 @@ def main():
             cycles_stats_df = pd.DataFrame(cycles_stats)
             
             # Display the cycle Analysis table in Streamlit
-            st.subheader("Cycle Analysis")
+            st.header("BTC Cycle Analysis")
             st.write(cycles_stats_df)
 
 
@@ -826,7 +829,7 @@ def main():
         days_until_cbbi_85 = col7_extrapolated_value * col8_extrapolated_value  # Calculate days until CBBI >= 85
         extrapolated_cbbi_85_date = current_cycle_start_date + timedelta(days=days_until_cbbi_85)
         
-        st.subheader("Current Cycle (Extrapolated Data)")
+        st.header("Current Cycle (Extrapolated Data)")
         
         # Create the Markdown table
         markdown_table = f"""
@@ -849,7 +852,7 @@ def main():
 
 
 # Plot BTC Price & CBBI
-        st.subheader("BTC Price & CBBI")
+        st.header("BTC Price & CBBI")
         fig = go.Figure()
         # Add BTC Price trace
         fig.add_trace(go.Scatter(x=df['Date'], y=df['Price'], name="BTC Price", mode='lines', line=dict(color='red')))
@@ -923,7 +926,7 @@ def main():
         st.plotly_chart(fig, use_container_width=True)
 
 # Cycle Comparison
-        st.subheader("Cycle Comparison")
+        st.header("Cycle Comparison")
 
         # Determine the cycle numbers to exclude (first and last)
         cycle_numbers = [chunk['Cycle Number'].iloc[0] for chunk in normalized_chunks]
