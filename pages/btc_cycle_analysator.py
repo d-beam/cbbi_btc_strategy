@@ -11,6 +11,21 @@ st.set_page_config(page_title="CBBI BTC App", page_icon="🚀", layout="wide")
 DATA_FILE = 'bitcoin_halving_data.csv'
 bitcoin_halving_data = pd.read_csv(DATA_FILE)
 
+# Define the check_persistence function
+def check_persistence(series, threshold, above=True, min_days=5):
+    count = 0
+    dates = series.index.tolist()
+
+    for i, (date, value) in enumerate(series.items()):
+        valid = value >= threshold if above else value <= threshold
+        if valid:
+            count += 1
+            if count == min_days:
+                return dates[i - min_days + 1]
+        else:
+            count = 0
+    return None
+
 # Utility Functions
 def fetch_and_process_data(url):
     headers = {
