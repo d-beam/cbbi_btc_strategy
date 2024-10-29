@@ -14,6 +14,7 @@ st.set_page_config(page_title="CBBI BTC App", page_icon="🚀", layout="wide")
 DATA_FILE = 'bitcoin_halving_data.csv'
 bitcoin_halving_data = pd.read_csv(DATA_FILE)
 
+# define functions for later use
 def fetch_and_process_data(url):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36'
@@ -22,13 +23,11 @@ def fetch_and_process_data(url):
         response = requests.get(url, headers=headers)
         response.raise_for_status()  # Will raise an HTTPError if the status is 4XX or 5XX
         data = response.json()
-
         processed_data = [{
             "Date": pd.to_datetime(int(timestamp), unit='s'),
             "Price": float(data["Price"][timestamp]),
             "CBBI": float(data.get("Confidence", {}).get(timestamp, "N/A")) * 100  # Scale the CBBI values
         } for timestamp in data.get("Price", {})]
-
         df = pd.DataFrame(processed_data)
         df['CBBI'] = pd.to_numeric(df['CBBI'], errors='coerce')  # Convert 'CBBI' to numeric, set 'N/A' to NaN
         return df
@@ -52,36 +51,29 @@ def check_persistence(series, threshold, above=True, min_days=5):
                 return dates[i - min_days + 1]  # Adjust to get the first date in the sequence
         else:
             count = 0  # Reset count if the sequence is broken
-
     return None
 
 # Normalizes cycle chunks data for comparison
 def normalize_cycle_data(chunk):
     # Normalize time (x-axis) from 0 to 1
     chunk['Normalized Time'] = (chunk['Date'] - chunk['Date'].min()) / (chunk['Date'].max() - chunk['Date'].min())
-
     # Normalize price (y-axis) from 0 to 1
     chunk['Normalized Price'] = (chunk['Price'] - chunk['Price'].min()) / (chunk['Price'].max() - chunk['Price'].min())
-
     # Normalize CBBI (y-axis) from 0 to 1
     chunk['Normalized CBBI'] = (chunk['CBBI'] - chunk['CBBI'].min()) / (chunk['CBBI'].max() - chunk['CBBI'].min())
-
     return chunk
 
 # Interpolate data to a common time scale
 def interpolate_data(filtered_chunks):
     # Determine the shortest time series length
     min_length = min(len(chunk) for chunk in filtered_chunks)
-
     # Common time points for interpolation (from 0 to 1 with min_length points)
     common_time = np.linspace(0, 1, min_length)
-
     # Interpolate all chunks to the common time scale
     interpolated_chunks = []
     for chunk in filtered_chunks:
         f_price = interp1d(chunk['Normalized Time'], chunk['Normalized Price'], kind='linear')
         f_cbbi = interp1d(chunk['Normalized Time'], chunk['Normalized CBBI'], kind='linear')
-
         interpolated_chunk = pd.DataFrame({
             'Normalized Time': common_time,
             'Normalized Price': f_price(common_time),
@@ -89,23 +81,22 @@ def interpolate_data(filtered_chunks):
             'Cycle Number': chunk['Cycle Number'].iloc[0]
         })
         interpolated_chunks.append(interpolated_chunk)
-
     return interpolated_chunks, common_time
 
 # Calculate the mean curve for normalized price and CBBI
 def calculate_mean_curve(interpolated_chunks):
     mean_price = np.mean([chunk['Normalized Price'] for chunk in interpolated_chunks], axis=0)
     mean_cbbi = np.mean([chunk['Normalized CBBI'] for chunk in interpolated_chunks], axis=0)
-
     return mean_price, mean_cbbi
 
-
+# frome here on starts the main programm
 def main():
     st.title("BTC Cycle & CBBI Analysis")
-
+    st.markdown("""
+    This app uses the [CBBI index](https://colintalkscrypto.com/cbbi/) as a basis for a long-term BTC investment strategy. Acknowledging that the BTC price moves in cycles, corresponding to the halving events, two thresholds (≥85 & ≤15) are defined to indicate whether it is time to sell or to buy. In-between, we DCA (dollar-cost-average) invest in the bull market and wait in the bear market.
+    """)
     url = "https://colintalkscrypto.com/cbbi/data/latest.json"
     df = fetch_and_process_data(url)
-
     if not df.empty:
 
 # Chunking
