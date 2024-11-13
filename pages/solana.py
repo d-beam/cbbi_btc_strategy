@@ -77,14 +77,17 @@ if sol_data_text and btc_data_text:
             sol_top = sol_data[(sol_data['date'] >= '2021-01-01') & (sol_data['date'] <= '2021-12-31')].sort_values(by='close', ascending=False).iloc[0]
             btc_top = btc_data[(btc_data['date'] >= '2021-01-01') & (btc_data['date'] <= '2021-12-31')].sort_values(by='close', ascending=False).iloc[0]
 
-            # Calculate the number of days between BTC top and SOL top
-            days_difference = (sol_top['date'] - btc_top['date']).days
+            # Correct the comparison logic to determine which asset topped first
+            if sol_top['date'] > btc_top['date']:
+                topping_order = f"Bitcoin topped first on {btc_top['date'].date()}, followed by Solana on {sol_top['date'].date()} ({(sol_top['date'] - btc_top['date']).days} days later)."
+            else:
+                topping_order = f"Solana topped first on {sol_top['date'].date()}, followed by Bitcoin on {btc_top['date'].date()} ({(btc_top['date'] - sol_top['date']).days} days later)."
 
             # Display the results
             st.subheader('2021 Bull Cycle Top Analysis')
             st.write(f"Bitcoin reached its peak price on {btc_top['date'].date()} with a closing price of {btc_top['close']} USDT.")
             st.write(f"Solana reached its peak price on {sol_top['date'].date()} with a closing price of {sol_top['close']} USDT.")
-            st.write(f"Solana topped {days_difference} days after Bitcoin's peak in the 2021 bull cycle.")
+            st.write(topping_order)
         else:
             st.error("Missing required columns in the data. Please ensure 'date' and 'close' columns are available.")
     except pd.errors.ParserError:
