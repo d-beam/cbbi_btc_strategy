@@ -28,6 +28,9 @@ if data_text:
         # Convert downloaded text to DataFrame
         data = pd.read_csv(StringIO(data_text), skiprows=1)  # Skip the header row
 
+        # Rename columns to lowercase for consistency
+        data.columns = [col.strip().lower() for col in data.columns]
+
         # Check for necessary columns
         required_columns = ['date', 'close']
         if all(col in data.columns for col in required_columns):
