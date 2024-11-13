@@ -13,7 +13,18 @@ def get_solana_price_data():
         'interval': 'daily'
     }
     response = requests.get(url, params=params)
+    
+    # Überprüfen, ob die Anfrage erfolgreich war
+    if response.status_code != 200:
+        st.error("Fehler beim Abrufen der Daten von CoinGecko.")
+        return pd.DataFrame()  # Leeres DataFrame zurückgeben, um Fehler zu vermeiden
+    
     data = response.json()
+    
+    # Überprüfen, ob 'prices' in den Daten enthalten ist
+    if 'prices' not in data:
+        st.error("Die Preisdaten konnten nicht geladen werden.")
+        return pd.DataFrame()
     
     # Umwandeln der Preisdaten in ein DataFrame
     prices = data['prices']
@@ -26,19 +37,21 @@ def get_solana_price_data():
 # Laden der Daten
 df = get_solana_price_data()
 
-# Titel der App
-st.title('Historische Solana Preisdaten')
+if df.empty:
+    st.write("Keine Preisdaten verfügbar.")
+else:
+    # Titel der App
+    st.title('Historische Solana Preisdaten')
 
-# Anzeigen der Daten
-st.write("Hier sind die historischen Solana-Preisdaten:")
-st.line_chart(df['Price'])
+    # Anzeigen der Daten
+    st.write("Hier sind die historischen Solana-Preisdaten:")
+    st.line_chart(df['Price'])
 
-# Plot der Preisdaten
-st.subheader("Preisverlauf von Solana über die Zeit")
-fig, ax = plt.subplots()
-ax.plot(df.index, df['Price'])
-ax.set_xlabel("Datum")
-ax.set_ylabel("Preis in USD")
-ax.set_title("Historischer Solana Preisverlauf")
-st.pyplot(fig)
-
+    # Plot der Preisdaten
+    st.subheader("Preisverlauf von Solana über die Zeit")
+    fig, ax = plt.subplots()
+    ax.plot(df.index, df['Price'])
+    ax.set_xlabel("Datum")
+    ax.set_ylabel("Preis in USD")
+    ax.set_title("Historischer Solana Preisverlauf")
+    st.pyplot(fig)
