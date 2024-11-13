@@ -72,6 +72,19 @@ if sol_data_text and btc_data_text:
             )
 
             st.plotly_chart(fig)
+
+            # Find the date of the tops in the 2021 bull cycle
+            sol_top = sol_data[(sol_data['date'] >= '2021-01-01') & (sol_data['date'] <= '2021-12-31')].sort_values(by='close', ascending=False).iloc[0]
+            btc_top = btc_data[(btc_data['date'] >= '2021-01-01') & (btc_data['date'] <= '2021-12-31')].sort_values(by='close', ascending=False).iloc[0]
+
+            # Calculate the number of days between BTC top and SOL top
+            days_difference = (sol_top['date'] - btc_top['date']).days
+
+            # Display the results
+            st.subheader('2021 Bull Cycle Top Analysis')
+            st.write(f"Bitcoin reached its peak price on {btc_top['date'].date()} with a closing price of {btc_top['close']} USDT.")
+            st.write(f"Solana reached its peak price on {sol_top['date'].date()} with a closing price of {sol_top['close']} USDT.")
+            st.write(f"Solana topped {days_difference} days after Bitcoin's peak in the 2021 bull cycle.")
         else:
             st.error("Missing required columns in the data. Please ensure 'date' and 'close' columns are available.")
     except pd.errors.ParserError:
