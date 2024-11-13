@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 import requests
 from io import StringIO
 
@@ -47,20 +47,31 @@ if sol_data_text and btc_data_text:
             sol_data = sol_data.sort_values(by='date')
             btc_data = btc_data.sort_values(by='date')
 
-            # Set date as index for plotting
-            sol_data.set_index('date', inplace=True)
-            btc_data.set_index('date', inplace=True)
+            # Merge the two dataframes on the date column
+            merged_data = pd.merge(sol_data[['date', 'close']], btc_data[['date', 'close']], on='date', suffixes=('_sol', '_btc'))
 
-            # Plotting the closing prices for Solana and Bitcoin
+            # Plotting the closing prices for Solana and Bitcoin using Plotly
             st.subheader('Daily Closing Prices for Solana and Bitcoin')
-            fig, ax = plt.subplots()
-            ax.plot(sol_data.index, sol_data['close'], label='SOL Closing Price', color='blue')
-            ax.plot(btc_data.index, btc_data['close'], label='BTC Closing Price', color='orange')
-            ax.set_xlabel('Date')
-            ax.set_ylabel('Price (USDT)')
-            ax.set_title('Solana and Bitcoin Daily Closing Prices')
-            ax.legend()
-            st.pyplot(fig)
+            fig = go.Figure()
+            
+            # Add Solana trace
+            fig.add_trace(go.Scatter(x=merged_data['date'], y=merged_data['close_sol'],
+                                     mode='lines', name='SOL Closing Price', line=dict(color='blue')))
+            
+            # Add Bitcoin trace with a secondary y-axis
+            fig.add_trace(go.Scatter(x=merged_data['date'], y=merged_data['close_btc'],
+                                     mode='lines', name='BTC Closing Price', line=dict(color='orange'), yaxis='y2'))
+
+            # Update layout for dual y-axis
+            fig.update_layout(
+                title='Solana and Bitcoin Daily Closing Prices',
+                xaxis_title='Date',
+                yaxis_title='Solana Price (USDT)',
+                yaxis2=dict(title='Bitcoin Price (USDT)', overlaying='y', side='right'),
+                legend_title='Cryptocurrency',
+            )
+
+            st.plotly_chart(fig)
         else:
             st.error("Missing required columns in the data. Please ensure 'date' and 'close' columns are available.")
     except pd.errors.ParserError:
