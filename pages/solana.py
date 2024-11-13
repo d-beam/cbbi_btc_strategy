@@ -1,57 +1,42 @@
 import streamlit as st
-import requests
 import pandas as pd
 import matplotlib.pyplot as plt
-from datetime import datetime
+from io import StringIO
+import requests
 
-# Funktion zum Abrufen historischer Preisdaten von CoinGecko
-def get_solana_price_data():
-    url = 'https://api.coingecko.com/api/v3/coins/solana/market_chart'
-    params = {
-        'vs_currency': 'usd',
-        'days': 'max',  # Abruf aller verfügbaren Daten
-        'interval': 'daily'
-    }
-    response = requests.get(url, params=params)
-    
-    # Überprüfen, ob die Anfrage erfolgreich war
-    if response.status_code != 200:
-        st.error("Fehler beim Abrufen der Daten von CoinGecko.")
-        return pd.DataFrame()  # Leeres DataFrame zurückgeben, um Fehler zu vermeiden
-    
-    data = response.json()
-    
-    # Überprüfen, ob 'prices' in den Daten enthalten ist
-    if 'prices' not in data:
-        st.error("Die Preisdaten konnten nicht geladen werden.")
-        return pd.DataFrame()
-    
-    # Umwandeln der Preisdaten in ein DataFrame
-    prices = data['prices']
-    df = pd.DataFrame(prices, columns=['Timestamp', 'Price'])
-    df['Date'] = pd.to_datetime(df['Timestamp'], unit='ms').dt.date  # Konvertieren der Zeitstempel in Datum
-    df.set_index('Date', inplace=True)
-    df.drop(columns='Timestamp', inplace=True)
-    return df
+# URL for Solana daily data from Binance on CryptoDataDownload
+DATA_URL = "https://www.cryptodatadownload.com/cdd/Binance_SOLUSDT_d.csv"
 
-# Laden der Daten
-df = get_solana_price_data()
+@st.cache
+def load_data():
+    # Download the CSV file from CryptoDataDownload
+    response = requests.get(DATA_URL)
+    response.raise_for_status()  # Ensure the request was successful
 
-if df.empty:
-    st.write("Keine Preisdaten verfügbar.")
+    # Read data, skip header rows, and parse dates
+    data = pd.read_csv(StringIO(response.text), skiprows=1)  # Skip first row with header
+    data['Date'] = pd.to_datetime(data['date'])  # Parse dates
+    data.set_index('Date', inplace=True)
+    return data[['close']].sort_index()  # Sort by date for correct order in the plot
+
+# Load data
+st.title("Historical Daily Price Data for Solana (SOL)")
+st.write("Data source: [CryptoDataDownload](https://www.cryptodatadownload.com)")
+
+data = load_data()
+
+if data.empty:
+    st.write("No data available.")
 else:
-    # Titel der App
-    st.title('Historische Solana Preisdaten')
+    # Display data and plot
+    st.write("Showing daily closing prices for Solana since its inception:")
+    st.line_chart(data['close'])
 
-    # Anzeigen der Daten
-    st.write("Hier sind die historischen Solana-Preisdaten:")
-    st.line_chart(df['Price'])
-
-    # Plot der Preisdaten
-    st.subheader("Preisverlauf von Solana über die Zeit")
+    # Matplotlib plot for additional customization (optional)
+    st.subheader("Daily Closing Price of Solana (SOL) Over Time")
     fig, ax = plt.subplots()
-    ax.plot(df.index, df['Price'])
-    ax.set_xlabel("Datum")
-    ax.set_ylabel("Preis in USD")
-    ax.set_title("Historischer Solana Preisverlauf")
+    ax.plot(data.index, data['close'], label="SOL-USD")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Price in USD")
+    ax.set_title("Historical Daily Closing Price of Solana (SOL)")
     st.pyplot(fig)
