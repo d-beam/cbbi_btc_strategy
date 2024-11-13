@@ -1,58 +1,64 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from io import StringIO
 import requests
+from io import StringIO
 
-# URL for Solana daily data from Binance on CryptoDataDownload
-DATA_URL = "https://www.cryptodatadownload.com/cdd/Binance_SOLUSDT_d.csv"
+# App title
+st.title('Solana Daily Historical Price Data')
 
-@st.cache
-def load_data():
-    # Download the CSV file from CryptoDataDownload
-    response = requests.get(DATA_URL)
-    response.raise_for_status()  # Ensure the request was successful
+# URL to download Solana historical data from Binance (via CryptoDataDownload)
+data_url = 'https://www.cryptodatadownload.com/cdd/Binance_SOLUSDT_d.csv'
 
-    # Read data, skip extra rows, and display column names to check
-    data = pd.read_csv(StringIO(response.text), skiprows=1)  # Skip initial row with text header
+# Function to download the data
+def download_data(url):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an HTTPError for bad responses
+        return response.text
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error downloading data: {e}")
+        return None
 
-    # Check column names
-    st.write("Columns in the downloaded data:", data.columns.tolist())
-    
-    # Ensure the expected columns exist
-    if 'date' in data.columns.str.lower():
-        data.columns = map(str.lower, data.columns)  # Convert columns to lowercase for consistency
-        data['date'] = pd.to_datetime(data['date'])
-        data.set_index('date', inplace=True)
-    else:
-        st.error("The expected 'date' column was not found in the data.")
-        return pd.DataFrame()
+# Load data into a DataFrame
+data_text = download_data(data_url)
 
-    # Return only the 'close' price column if it exists
-    if 'close' in data.columns:
-        return data[['close']].sort_index()  # Sort by date
-    else:
-        st.error("The 'close' price column was not found in the data.")
-        return pd.DataFrame()
+if data_text:
+    try:
+        # Convert downloaded text to DataFrame
+        data = pd.read_csv(StringIO(data_text), skiprows=1)  # Skip the header row
 
-# Load data
-st.title("Historical Daily Price Data for Solana (SOL)")
-st.write("Data source: [CryptoDataDownload](https://www.cryptodatadownload.com)")
+        # Check for necessary columns
+        required_columns = ['date', 'close']
+        if all(col in data.columns for col in required_columns):
+            # Convert date column to datetime format
+            data['date'] = pd.to_datetime(data['date'], format='%Y-%m-%d')
+            
+            # Sort data by date
+            data = data.sort_values(by='date')
 
-data = load_data()
+            # Set date as index for plotting
+            data.set_index('date', inplace=True)
 
-if data.empty:
-    st.write("No data available.")
+            # Plotting the closing prices
+            st.subheader('Daily Closing Prices for Solana')
+            fig, ax = plt.subplots()
+            ax.plot(data.index, data['close'], label='SOL Closing Price', color='blue')
+            ax.set_xlabel('Date')
+            ax.set_ylabel('Price (USDT)')
+            ax.set_title('Solana Daily Closing Prices')
+            ax.legend()
+            st.pyplot(fig)
+        else:
+            st.error("Missing required columns in the data. Please ensure 'date' and 'close' columns are available.")
+    except pd.errors.ParserError:
+        st.error("Error parsing the data. Please check the CSV formatting.")
+    except ValueError as ve:
+        st.error(f"Value error: {ve}")
 else:
-    # Display data and plot
-    st.write("Showing daily closing prices for Solana since its inception:")
-    st.line_chart(data['close'])
+    st.error("Unable to load data. Please try again later.")
 
-    # Matplotlib plot for additional customization (optional)
-    st.subheader("Daily Closing Price of Solana (SOL) Over Time")
-    fig, ax = plt.subplots()
-    ax.plot(data.index, data['close'], label="SOL-USD")
-    ax.set_xlabel("Date")
-    ax.set_ylabel("Price in USD")
-    ax.set_title("Historical Daily Closing Price of Solana (SOL)")
-    st.pyplot(fig)
+# UI: Help section for user experience
+st.sidebar.title("Help & Information")
+st.sidebar.write("This app visualizes the historical daily closing prices of Solana (SOL) using data from CryptoDataDownload.")
+st.sidebar.write("If data fails to load, please ensure you have an active internet connection and that the data source is available.")
