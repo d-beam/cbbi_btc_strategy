@@ -13,11 +13,27 @@ def load_data():
     response = requests.get(DATA_URL)
     response.raise_for_status()  # Ensure the request was successful
 
-    # Read data, skip header rows, and parse dates
-    data = pd.read_csv(StringIO(response.text), skiprows=1)  # Skip first row with header
-    data['Date'] = pd.to_datetime(data['date'])  # Parse dates
-    data.set_index('Date', inplace=True)
-    return data[['close']].sort_index()  # Sort by date for correct order in the plot
+    # Read data, skip extra rows, and display column names to check
+    data = pd.read_csv(StringIO(response.text), skiprows=1)  # Skip initial row with text header
+
+    # Check column names
+    st.write("Columns in the downloaded data:", data.columns.tolist())
+    
+    # Ensure the expected columns exist
+    if 'date' in data.columns.str.lower():
+        data.columns = map(str.lower, data.columns)  # Convert columns to lowercase for consistency
+        data['date'] = pd.to_datetime(data['date'])
+        data.set_index('date', inplace=True)
+    else:
+        st.error("The expected 'date' column was not found in the data.")
+        return pd.DataFrame()
+
+    # Return only the 'close' price column if it exists
+    if 'close' in data.columns:
+        return data[['close']].sort_index()  # Sort by date
+    else:
+        st.error("The 'close' price column was not found in the data.")
+        return pd.DataFrame()
 
 # Load data
 st.title("Historical Daily Price Data for Solana (SOL)")
